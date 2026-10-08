@@ -1,0 +1,1833 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seeblick KYC Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: compliance console. Queue view with live crew status, then case view with the agent crew on top, documents left, results right. */
+:root {
+  --bg: #F3F5F8;
+  --surface: #FFFFFF;
+  --surface-2: #EEF1F5;
+  --fg: #0B1F3A;
+  --muted: #5A6A80;
+  --line: #D8DEE7;
+  --track: #E3E8EF;
+  --navy: #0B1F3A;
+  --navy-fg: #FFFFFF;
+  --on-fill: #FFFFFF;
+  --agent: #2F7F7A;
+  --agent-soft: #E3F0EE;
+  --ok: #2E7D4F;
+  --ok-soft: #E4F2E9;
+  --warn: #A86A12;
+  --warn-soft: #FBF0DC;
+  --bad: #B3362C;
+  --bad-soft: #F8E3E0;
+  --banner: #F2C14E;
+  --banner-fg: #3A2A05;
+  --passport: #E4EEEC;
+  --passport-ink: #1F3D45;
+  --passport-line: #9DBDB8;
+  --bill: #FBFBF8;
+  --bill-ink: #23303F;
+  --watermark: rgba(179, 54, 44, 0.13);
+  --xray: rgba(8, 20, 38, 0.74);
+  --term-bg: #0B1F3A;
+  --term-fg: #D8E2EF;
+  --term-dim: #8296B0;
+  --term-agent: #6FD0C6;
+  --term-ok: #7BD3A0;
+  --term-warn: #F0BE6B;
+  --term-bad: #F59A91;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1626; --surface: #13203A; --surface-2: #1A2945; --fg: #E6ECF4; --muted: #9AA9BE; --line: #2A3A57; --track: #243455;
+    --navy: #DDE6F2; --navy-fg: #0B1F3A; --agent: #5BB8B0; --agent-soft: #173936;
+    --ok: #63C28A; --ok-soft: #173525; --warn: #E3A94A; --warn-soft: #3A2C12; --bad: #EE7D72; --bad-soft: #3D1C1A;
+    --banner: #E3B13F; --banner-fg: #2A1E03;
+    --passport: #1B3236; --passport-ink: #CFE4E1; --passport-line: #3F6A66; --bill: #1A2233; --bill-ink: #DCE3EE;
+    --watermark: rgba(238, 125, 114, 0.16); --xray: rgba(2, 8, 18, 0.78); --term-bg: #08121F; --on-fill: #08121F;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1626; --surface: #13203A; --surface-2: #1A2945; --fg: #E6ECF4; --muted: #9AA9BE; --line: #2A3A57; --track: #243455;
+  --navy: #DDE6F2; --navy-fg: #0B1F3A; --agent: #5BB8B0; --agent-soft: #173936;
+  --ok: #63C28A; --ok-soft: #173525; --warn: #E3A94A; --warn-soft: #3A2C12; --bad: #EE7D72; --bad-soft: #3D1C1A;
+  --banner: #E3B13F; --banner-fg: #2A1E03;
+  --passport: #1B3236; --passport-ink: #CFE4E1; --passport-line: #3F6A66; --bill: #1A2233; --bill-ink: #DCE3EE;
+  --watermark: rgba(238, 125, 114, 0.16); --xray: rgba(2, 8, 18, 0.78); --term-bg: #08121F; --on-fill: #08121F;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: 64px; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, textarea:focus-visible, summary:focus-visible, input:focus-visible + .track, dialog:focus-visible { outline: 2px solid var(--agent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); }
+.label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.banner { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--banner); color: var(--banner-fg);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; text-align: center; padding: 8px 16px; }
+
+.wrap { max-width: 1480px; margin: 0 auto; padding-inline: 24px; }
+@media (max-width: 600px) { .wrap { padding-inline: 16px; } }
+
+header.top { background: var(--surface); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 14px; flex-wrap: wrap; }
+.top-act { display: flex; gap: 8px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; background: none; border: 0; color: inherit; padding: 0; text-align: left; }
+.mark { width: 36px; height: 36px; background: var(--navy); color: var(--navy-fg); display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 800; font-size: 15px; }
+.brand-name { font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+.brand-sub { font-size: 12px; color: var(--muted); }
+.pill-live { margin-left: 8px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--agent-soft); color: var(--agent); padding: 3px 7px; }
+.btn { border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 9px 14px; font-weight: 600; font-size: 14px;
+  display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--navy); color: var(--navy-fg); border-color: var(--navy); }
+.btn.primary:hover { opacity: 0.9; }
+.btn.agent { background: var(--agent); color: var(--on-fill); border-color: var(--agent); }
+.btn.agent:hover { opacity: 0.92; }
+.btn.danger { background: var(--bad); color: var(--on-fill); border-color: var(--bad); }
+.btn.big { padding: 12px 18px; font-size: 15px; }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.link { background: none; border: 0; padding: 0; color: var(--agent); font-weight: 600; font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; text-align: left; }
+.link:hover { opacity: 0.8; }
+
+main { padding-block: 24px 56px; }
+
+/* Queue */
+.queue-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.queue-head h1 { font-size: clamp(26px, 3.4vw, 38px); font-weight: 700; }
+.queue-head p { margin: 6px 0 0; color: var(--muted); }
+
+.mission { display: grid; grid-template-columns: minmax(0, 1fr) auto; background: var(--surface); border: 1px solid var(--line); margin-bottom: 16px; }
+.crew { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.crew-cell { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-right: 1px solid var(--line); min-width: 0; }
+.crew-cell:last-child { border-right: 0; }
+.glyph { width: 34px; height: 34px; flex: none; display: grid; place-items: center; background: var(--agent-soft); color: var(--agent);
+  font-family: var(--font-display); font-weight: 800; font-size: 14px; }
+.crew-cell.busy .glyph { background: var(--agent); color: var(--on-fill); animation: pulse 0.9s ease-in-out infinite; }
+.crew-cell.fin .glyph { background: var(--ok-soft); color: var(--ok); }
+.crew-txt { flex: 1; min-width: 0; }
+.crew-name { font-weight: 600; font-size: 13.5px; line-height: 1.3; }
+.crew-state { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.crew-bar { display: block; height: 3px; margin-top: 7px; background: var(--track); }
+.crew-bar i { display: block; height: 100%; background: var(--agent); }
+.mission-act { display: grid; gap: 10px; align-content: center; justify-items: start; padding: 14px 20px; border-left: 1px solid var(--line); min-width: 320px; }
+.act-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.clock { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .mission { grid-template-columns: 1fr; } .mission-act { border-left: 0; border-top: 1px solid var(--line); } }
+@media (max-width: 760px) {
+  .crew { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crew-cell:nth-child(2n) { border-right: 0; }
+  .crew-cell:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  .mission-act { min-width: 0; }
+}
+
+.switch { position: relative; display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; line-height: 1.4; color: var(--muted); cursor: pointer; max-width: 380px; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch .track { width: 36px; height: 20px; flex: none; margin-top: 1px; background: var(--track); border: 1px solid var(--line); position: relative; transition: background-color 0.2s; }
+.switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: var(--surface); border: 1px solid var(--line); transition: transform 0.2s; }
+.switch input:checked + .track { background: var(--agent); border-color: var(--agent); }
+.switch input:checked + .track::after { transform: translateX(16px); border-color: var(--agent); }
+.switch b { color: var(--fg); font-weight: 600; }
+
+/* Scoreboard: always on screen, so nothing jumps when the run finishes. Counters tick up while the crew works. */
+.score { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: 16px; }
+.score > div { background: var(--surface); padding: 10px 18px; min-width: 0; }
+.score.going > div, .score.fin > div { background: var(--agent-soft); }
+.score .v { font-family: var(--font-display); font-size: 21px; font-weight: 700; line-height: 1.25; margin-top: 1px; font-variant-numeric: tabular-nums; }
+.score .v small { font-size: 13px; font-weight: 600; color: var(--muted); }
+.score.idle .v { color: var(--muted); }
+.score .s { font-size: 12px; color: var(--muted); }
+@media (max-width: 900px) { .score { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); margin: 24px 0 8px; }
+.kpi { padding: 16px 22px; border-right: 1px solid var(--line); min-width: 0; }
+.kpi:last-child { border-right: 0; }
+.kpi .v { font-family: var(--font-display); font-size: 22px; font-weight: 700; margin-top: 4px; }
+.kpi .v small { color: var(--agent); font-size: 22px; }
+.kpi-note { font-size: 11px; color: var(--muted); text-align: right; }
+@media (max-width: 760px) { .kpis { grid-template-columns: 1fr; } .kpi { border-right: 0; border-bottom: 1px solid var(--line); } .kpi:last-child { border-bottom: 0; } }
+
+.table { background: var(--surface); border: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 1.4fr 0.7fr 0.8fr 1.5fr 0.8fr 24px; gap: 12px; align-items: center; padding: 12px 20px;
+  border-bottom: 1px solid var(--line); width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0; color: inherit; text-align: left; }
+.row:last-child { border-bottom: 0; }
+button.row:hover { background: var(--surface-2); }
+.row.head { padding-block: 10px; background: var(--surface-2); }
+.who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: var(--navy-fg); display: grid; place-items: center; font-size: 12px; font-weight: 600; flex: none; }
+.who b { font-weight: 600; }
+.who .hint { display: block; font-size: 12px; color: var(--muted); }
+.cell-muted { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.chev { color: var(--muted); }
+@media (max-width: 900px) { .row { grid-template-columns: 1fr auto; } .row .hide-sm { display: none; } .row.head { display: none; } }
+.prog { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 2px; height: 6px; max-width: 240px; }
+.prog i { background: var(--track); }
+.prog i.on { background: var(--agent); }
+.prog i.cur { background: color-mix(in srgb, var(--agent) 45%, var(--track)); animation: blinkbar 0.9s ease-in-out infinite; }
+@keyframes blinkbar { 50% { opacity: 0.4; } }
+.stxt { font-size: 12px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+.subline { font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 8px; white-space: nowrap; }
+.chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip.nodot::before { display: none; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+.chip.neutral { background: var(--surface-2); color: var(--muted); }
+.chip.agent { background: var(--agent-soft); color: var(--agent); }
+
+/* Case view */
+.case-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.case-title { display: flex; align-items: center; gap: 14px; }
+.back { width: 38px; height: 38px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); display: grid; place-items: center; font-size: 18px; flex: none; }
+.case-title h1 { font-size: 24px; font-weight: 700; }
+.case-title p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+.stack { display: grid; gap: 20px; min-width: 0; }
+/* On wide screens the documents stay in view while the officer scrolls the results, so evidence is always beside the finding. */
+@media (min-width: 1101px) { .stack.stick { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 50px); max-height: calc(100vh - 66px); overflow-y: auto; padding: 3px; margin: -3px; } }
+.panel { background: var(--surface); border: 1px solid var(--line); min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.panel-head h2 { font-size: 14px; font-weight: 700; }
+.panel-head .sub { font-size: 12px; color: var(--muted); }
+.head-r { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+.appform { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.appform .f { padding: 12px 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.appform .f:nth-child(3n) { border-right: 0; }
+.appform .f:nth-last-child(-n+3) { border-bottom: 0; }
+@media (max-width: 640px) {
+  .appform { grid-template-columns: 1fr; }
+  .appform .f { border-right: 0; border-bottom: 1px solid var(--line); }
+  .appform .f:nth-last-child(-n+3) { border-bottom: 1px solid var(--line); }
+  .appform .f:last-child { border-bottom: 0; }
+}
+
+.doc-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: -4px; }
+.tgl { border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 6px 11px; font-size: 12px; font-weight: 600; }
+.tgl:hover:not(:disabled) { background: var(--surface-2); }
+.tgl[aria-pressed="true"], .tgl[aria-pressed="true"]:hover:not(:disabled) { background: var(--navy); color: var(--navy-fg); border-color: var(--navy); }
+.tgl:disabled { opacity: 0.5; cursor: default; }
+.docs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 760px) { .docs { grid-template-columns: 1fr; } }
+.doc { position: relative; overflow: hidden; padding: 18px; min-height: 340px; }
+.doc.passport { background: var(--passport); color: var(--passport-ink); }
+.doc.bill { background: var(--bill); color: var(--bill-ink); }
+.watermark { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 2;
+  font-family: var(--font-display); font-weight: 800; font-size: clamp(20px, 2.6vw, 30px); color: var(--watermark); transform: rotate(-24deg); white-space: nowrap; letter-spacing: 0.04em; }
+.scanline { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--agent); opacity: 0; z-index: 3; pointer-events: none;
+  box-shadow: 0 0 14px 4px color-mix(in srgb, var(--agent) 45%, transparent); }
+.doc.scanning .scanline { opacity: 1; animation: scan 1.2s linear infinite; }
+@keyframes scan { from { top: 0; } to { top: 100%; } }
+.doc-top { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--passport-line); position: relative; z-index: 1; }
+.doc.bill .doc-top { border-bottom: 2px solid var(--line); }
+.doc-country { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.doc-type { font-family: var(--font-display); font-size: 22px; font-weight: 800; letter-spacing: 0.06em; }
+.seal { width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--passport-line); display: grid; place-items: center; font-size: 10px; font-weight: 700; flex: none; }
+.pp-body { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 14px; margin-top: 14px; position: relative; z-index: 1; }
+.photo { height: 112px; border: 1px solid var(--passport-line); display: grid; place-items: end center; overflow: hidden; }
+.photo svg { width: 70px; height: 90px; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
+.fld { position: relative; padding: 4px 6px; border: 1.5px solid transparent; transition: background-color 0.25s, border-color 0.25s; min-width: 0; }
+.fld .k { font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; }
+.fld .val { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.fld .val.big { font-family: var(--font-display); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fld .tag { display: inline-block; margin-left: 6px; padding: 1px 5px; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: var(--ok-soft); color: var(--ok); vertical-align: 1px; }
+.fld.span2 { grid-column: span 2; }
+.amount { text-align: right; flex: none; }
+.fld .val.big { white-space: nowrap; }
+.fld.lit { border-color: var(--agent); background: color-mix(in srgb, var(--agent) 16%, transparent); }
+.fld.lit::after { content: attr(data-conf); position: absolute; top: -9px; right: 4px; padding: 1px 5px; background: var(--agent); color: var(--on-fill);
+  font: 600 9.5px/1.3 var(--font-mono); }
+.fld.issue { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.fld.partial { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.fld.tamper::before { content: "Edited"; position: absolute; top: -9px; left: 4px; padding: 1px 5px; background: var(--bad); color: var(--on-fill);
+  font: 700 9px/1.3 var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; }
+.fld.focus { outline: 2px solid var(--fg); outline-offset: 2px; background: color-mix(in srgb, var(--warn) 24%, transparent); }
+.mrz { position: relative; z-index: 1; margin-top: 14px; padding: 8px 10px; border: 1.5px solid var(--passport-line); font-family: var(--font-mono); font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; transition: background-color 0.25s, border-color 0.25s; }
+.mrz.lit { border-color: var(--agent); background: color-mix(in srgb, var(--agent) 16%, transparent); }
+.mrz.lit::after { content: attr(data-conf); position: absolute; top: -9px; right: 6px; padding: 1px 5px; background: var(--agent); color: var(--on-fill); font: 600 9.5px/1.3 var(--font-mono); }
+.mrz.focus { outline: 2px solid var(--fg); outline-offset: 2px; }
+.bill-logo { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+.bill-logo span { width: 26px; height: 26px; background: var(--agent); color: var(--on-fill); display: grid; place-items: center; font-size: 11px; }
+.bill-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin-top: 14px; position: relative; z-index: 1; }
+.usage { margin-top: 16px; padding-block: 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 11px; position: relative; z-index: 1; }
+.usage .bar { height: 6px; background: var(--surface-2); margin-top: 8px; }
+.usage .bar i { display: block; height: 100%; width: 64%; background: var(--agent); }
+.fine { font-size: 10px; opacity: 0.7; margin-top: 12px; position: relative; z-index: 1; }
+.sublabel { margin: 12px 0 4px; }
+.panel-head h2 .chip { margin-left: 8px; vertical-align: 1px; }
+
+/* Forensic x-ray view: dim the page, let edited regions glow */
+.xray { display: none; position: absolute; inset: 0; z-index: 3; pointer-events: none; background-color: var(--xray);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
+.xray-cap { position: absolute; left: 14px; bottom: 12px; z-index: 5; display: none; padding: 3px 8px; background: var(--term-bg); color: var(--term-fg); font: 500 11px/1.4 var(--font-mono); }
+.doc.forensic .xray, .doc.forensic .xray-cap { display: block; }
+.doc.forensic .doc-top, .doc.forensic .pp-body, .doc.forensic .mrz, .doc.forensic .bill-body, .doc.forensic .usage, .doc.forensic .fine { z-index: auto; }
+.doc.forensic .fld.tamper { z-index: 4; background: color-mix(in srgb, var(--bad) 35%, var(--bill)); border-color: var(--bad);
+  box-shadow: 0 0 0 2px var(--bad), 0 0 26px 8px color-mix(in srgb, var(--bad) 60%, transparent); }
+
+/* Agent crew */
+/* Crew timeline: one lane per agent, one bar per check, laid out on a shared clock so parallel work is visible at a glance */
+.gantt { position: relative; display: grid; grid-template-columns: 188px minmax(0, 1fr); }
+.g-label { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0 12px; border-top: 1px solid var(--line); }
+.g-label .glyph { width: 26px; height: 26px; font-size: 12px; }
+.g-label b { font-size: 12.5px; line-height: 1.25; }
+.g-track { position: relative; height: 48px; margin-right: 14px; border-top: 1px solid var(--line); }
+.g-layer { grid-column: 2; grid-row: 1 / 5; position: relative; margin-right: 14px; pointer-events: none; }
+.g-now { position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: var(--fg); opacity: 0.55; animation: gnow var(--total) linear forwards; animation-delay: var(--delay0); }
+@keyframes gnow { from { left: 0; } to { left: 100%; } }
+.g-axis { grid-column: 2; grid-row: 5; position: relative; height: 24px; margin-right: 14px; border-top: 1px solid var(--line); font: 500 10px/1 var(--font-mono); color: var(--muted); }
+.g-axis span { position: absolute; top: 7px; transform: translateX(-1px); padding-left: 3px; border-left: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.gbar { position: absolute; top: 10px; height: 28px; display: flex; align-items: center; padding-inline: 8px; overflow: hidden; white-space: nowrap;
+  background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); font-size: 11.5px; font-weight: 600; transition: background-color 0.25s, color 0.25s; }
+.gbar.run { color: var(--fg); background: var(--agent-soft); border-color: var(--agent); }
+.gbar.run::before { content: ""; position: absolute; inset: 0; z-index: -1; background: color-mix(in srgb, var(--agent) 30%, transparent); transform-origin: left; animation: gfill var(--d) linear forwards; animation-delay: var(--delay); }
+.gbar.run { z-index: 0; isolation: isolate; }
+@keyframes gfill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.gbar.done { background: var(--agent); border-color: var(--agent); color: var(--on-fill); }
+.gbar.done.warn { background: var(--warn); border-color: var(--warn); }
+.gbar.done.bad { background: var(--bad); border-color: var(--bad); }
+.g-none { position: absolute; left: 0; top: 14px; font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .g-now { display: none; } }
+
+.crewband { margin-bottom: 20px; }
+.orch { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); font-size: 12.5px; }
+.orch .glyph { width: 24px; height: 24px; font-size: 11px; background: var(--navy); color: var(--navy-fg); }
+.orch .plan { color: var(--muted); }
+.orch .clock { margin-left: auto; color: var(--fg); }
+.lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); }
+@media (max-width: 1100px) { .lanes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .lanes { grid-template-columns: 1fr; } }
+.lane { display: flex; flex-direction: column; background: var(--surface); min-width: 0; }
+.lane-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); }
+.lane-head .glyph { width: 26px; height: 26px; font-size: 12px; }
+.lane-head b { font-size: 13px; }
+.lane-head small { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.lane-n { margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.step { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; background: var(--surface); border-top: 1px solid var(--line); padding: 10px 12px; min-height: 76px; transition: background-color 0.3s; }
+.step.current { background: var(--agent-soft); }
+.step.current::after { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 40%; background: var(--agent); animation: sweep 1.1s ease-in-out infinite; }
+@keyframes sweep { from { left: -40%; } to { left: 100%; } }
+.dot { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.step.done .dot { background: var(--agent); border-color: var(--agent); color: var(--on-fill); }
+.step.current .dot { border-color: var(--agent); color: var(--agent); animation: pulse 0.9s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--agent) 25%, transparent); } }
+.st-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.st-l { font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--muted); }
+.step.done .st-l, .step.current .st-l { color: var(--fg); }
+.conf { font-size: 11px; font-weight: 600; color: var(--agent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tool { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+.note { display: block; margin-top: 3px; font-size: 12px; line-height: 1.4; color: var(--fg); }
+.note.warn { color: var(--warn); }
+.note.bad { color: var(--bad); }
+.crew-min { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; font-size: 13px; }
+.crew-min .ok-mark { width: 22px; height: 22px; border-radius: 50%; background: var(--agent); color: var(--on-fill); display: grid; place-items: center; font-size: 11px; flex: none; }
+.status-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.status-dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.status-dot.run::before { background: var(--agent); animation: pulse 0.9s infinite; }
+.status-dot.fin::before { background: var(--ok); }
+
+/* Results */
+.tabs { display: flex; gap: 20px; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 4px 0 8px; color: var(--muted); font-weight: 600; font-size: 14px; }
+.tab[aria-selected="true"] { color: var(--fg); border-color: var(--fg); }
+.section { padding: 18px; border-bottom: 1px solid var(--line); }
+.section:last-child { border-bottom: 0; }
+.section > .label { margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.empty { min-height: 460px; display: grid; place-items: center; text-align: center; padding: 32px; }
+.empty h3 { font-size: 17px; margin-bottom: 6px; }
+.empty p { color: var(--muted); max-width: 30ch; margin: 0 auto; font-size: 14px; }
+.reco { display: flex; gap: 14px; align-items: start; }
+.reco-badge { width: 44px; height: 44px; display: grid; place-items: center; font-weight: 800; font-family: var(--font-display); font-size: 18px; flex: none; }
+.reco-badge.ok { background: var(--ok-soft); color: var(--ok); }
+.reco-badge.warn { background: var(--warn-soft); color: var(--warn); }
+.reco-badge.bad { background: var(--bad-soft); color: var(--bad); }
+.reco .big { font-family: var(--font-display); font-size: 22px; font-weight: 800; letter-spacing: 0.02em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.reco p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.riskline { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.riskline .route { grid-column: 1 / -1; color: var(--muted); }
+.riskline .route b { color: var(--fg); font-weight: 600; }
+
+.flags { display: grid; gap: 10px; }
+.flag { border: 1px solid var(--line); border-left: 4px solid var(--warn); padding: 10px 12px; }
+.flag.high { border-left-color: var(--bad); }
+.flag.low { border-left-color: var(--muted); }
+.flag[data-ev]:hover { background: var(--surface-2); }
+.flag-t { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; font-size: 13.5px; }
+.flag p { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+.flag-f { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.pol { font-size: 11.5px; color: var(--muted); }
+.pol b { font-family: var(--font-mono); font-weight: 500; color: var(--fg); }
+.flag.resolved { border-left-color: var(--ok); opacity: 0.85; }
+.noflags { background: var(--ok-soft); color: var(--ok); padding: 10px 12px; font-size: 13px; font-weight: 600; }
+
+.next-stack { display: grid; gap: 12px; }
+.next { border: 1px solid var(--line); }
+.next-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.next-h b { font-size: 13.5px; }
+.next-b { padding: 12px 14px; font-size: 13px; }
+.next-b p { margin: 0 0 8px; color: var(--muted); }
+.msg-subj { font-weight: 600; font-size: 13.5px; margin-bottom: 6px; }
+.msg-body { white-space: pre-line; font-size: 13px; line-height: 1.55; border-left: 3px solid var(--line); padding-left: 12px; margin: 0 0 10px; }
+textarea.msg { min-height: 190px; font-size: 13px; line-height: 1.55; }
+.next-a { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.bubble { margin-top: 10px; padding: 10px 12px; background: var(--ok-soft); font-size: 13px; }
+.bubble .who2 { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ok); margin-bottom: 2px; }
+.bubble .read { margin-top: 6px; font-size: 12px; color: var(--muted); }
+details.mini { margin-top: 8px; font-size: 12.5px; }
+details.mini summary { cursor: pointer; color: var(--agent); font-weight: 600; }
+details.mini div { margin-top: 6px; color: var(--muted); white-space: pre-line; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.checks li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+.checks li:first-child { border-top: 0; }
+.kv { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 0; font-size: 12.5px; }
+.kv > div { padding: 6px 0; border-top: 1px solid var(--line); }
+.kv > div:nth-child(-n+2) { border-top: 0; }
+.kv > div:nth-child(odd) { color: var(--muted); }
+
+.hitl { background: var(--agent-soft); padding: 12px 14px; margin-bottom: 14px; }
+.hitl b { display: block; font-size: 14px; color: var(--fg); }
+.hitl span { font-size: 12px; color: var(--muted); }
+textarea { width: 100%; min-height: 96px; margin-top: 6px; padding: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; font-size: 14px; resize: vertical; }
+textarea.err { border-color: var(--bad); }
+.err-msg { color: var(--bad); font-size: 12px; margin-top: 4px; }
+.drafted { font-size: 11.5px; color: var(--agent); font-weight: 600; margin-top: 4px; }
+.decide { display: grid; gap: 8px; margin-top: 12px; }
+.decide .btn { justify-content: flex-start; }
+.lock { font-size: 12px; color: var(--muted); margin: -2px 0 0; }
+.decided { background: var(--ok-soft); color: var(--ok); padding: 14px; }
+.decided.esc { background: var(--bad-soft); color: var(--bad); }
+.decided b { display: block; }
+.decided q { display: block; margin-top: 6px; color: var(--fg); font-size: 13px; }
+.decided .meta { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.after { margin-top: 12px; border: 1px solid var(--line); }
+
+details.ev { border-bottom: 1px solid var(--line); }
+details.ev:last-child { border-bottom: 0; }
+details.ev > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 13px 18px; }
+details.ev > summary::-webkit-details-marker { display: none; }
+details.ev > summary::before { content: "›"; width: 10px; color: var(--muted); transition: transform 0.15s; }
+details.ev[open] > summary::before { transform: rotate(90deg); }
+.ev-t { font-weight: 600; font-size: 13.5px; }
+.ev-s { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); text-align: right; }
+.ev-b { padding: 0 18px 18px; }
+.fine2 { margin: 10px 0 0; font-size: 11.5px; color: var(--muted); }
+
+.cmp-wrap { overflow-x: auto; }
+table.cmp { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 12.5px; }
+table.cmp th { text-align: left; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 0 8px 8px 0; font-weight: 600; }
+table.cmp td { padding: 9px 8px 9px 0; border-top: 1px solid var(--line); vertical-align: top; font-variant-numeric: tabular-nums; }
+table.cmp td:first-child { font-weight: 600; }
+table.cmp tr[data-ev]:hover td { background: var(--surface-2); }
+.res { font-weight: 600; white-space: nowrap; }
+.res.ok { color: var(--ok); } .res.warn { color: var(--warn); } .res.bad { color: var(--bad); }
+
+.scr { display: grid; gap: 14px; }
+.scr-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.scr-h b { font-size: 13.5px; }
+.cand { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); font-size: 12.5px; }
+.cand[data-ev]:hover { background: var(--surface-2); }
+.cand-t { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cand-t .sim { margin-left: auto; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cand p { margin: 4px 0 0; color: var(--muted); }
+
+.sigs { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.sigs th { text-align: left; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 12px 8px 6px 0; font-weight: 600; }
+.sigs td { padding: 6px 8px 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.sigs td:first-child { font-weight: 600; width: 34%; }
+
+.meter-wrap { padding-top: 18px; }
+.meter { position: relative; height: 10px; background: var(--track); }
+.meter .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--ok); transition: width 0.7s ease-out; }
+.meter.warn .fill { background: var(--warn); }
+.meter.bad .fill { background: var(--bad); }
+.meter .tick { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--fg); opacity: 0.4; }
+.meter .score { position: absolute; top: -20px; transform: translateX(-50%); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.meter-scale { position: relative; height: 18px; margin-top: 4px; font-size: 11px; color: var(--muted); }
+.meter-scale span { position: absolute; top: 0; white-space: nowrap; }
+.fac { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px; gap: 2px 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+.fac:hover { background: var(--surface-2); }
+.fac .name { font-weight: 600; }
+.fac .bar { height: 8px; background: var(--track); position: relative; }
+.fac .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--agent); border-radius: 0 4px 4px 0; transition: width 0.6s ease-out; }
+.fac .pts { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fac .why { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.mini-meter { position: relative; height: 8px; background: var(--track); min-width: 120px; }
+.mini-meter i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--ok); transition: width 0.7s ease-out; }
+.mini-meter.warn i { background: var(--warn); } .mini-meter.bad i { background: var(--bad); }
+
+.sow { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.sow th { text-align: left; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 0 8px 8px 0; font-weight: 600; }
+.sow td { padding: 8px 8px 8px 0; border-top: 1px solid var(--line); vertical-align: top; font-variant-numeric: tabular-nums; }
+.sow td.n, .sow th.n { text-align: right; }
+.cov { margin-top: 14px; }
+.cov-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12.5px; margin-bottom: 6px; }
+.cov-h b { font-size: 13.5px; }
+.cov .meter { height: 10px; }
+.cov .meter .fill { background: var(--agent); border-radius: 0 4px 4px 0; }
+
+.audit { padding: 18px; min-height: 460px; }
+.audit-top { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.audit-top h3 { font-size: 15px; }
+.audit-top p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.events { list-style: none; margin: 0; padding: 0; }
+.events li { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.events li:first-child { border-top: 0; }
+.events time { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.events .kind { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 6px; }
+.kind.agent { color: var(--agent); } .kind.flag { color: var(--bad); } .kind.human { color: var(--ok); } .kind.sys { color: var(--muted); }
+.json-out { margin-top: 14px; }
+.json-out textarea { min-height: 220px; font-family: var(--font-mono); font-size: 11.5px; }
+.copied { font-size: 12px; color: var(--ok); margin-left: 8px; }
+
+/* Live agent log */
+.live { background: var(--term-bg); color: var(--term-fg); font-family: var(--font-mono); font-size: 12px; line-height: 1.65; padding: 14px 16px; min-height: 460px; }
+.live .hd { color: var(--term-dim); margin-bottom: 8px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.live .quote { margin: 0 0 10px; padding: 8px 10px; border-left: 2px solid var(--term-agent); color: var(--term-fg); white-space: pre-line; }
+.live .ln { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 10px; }
+.live .t { color: var(--term-dim); font-variant-numeric: tabular-nums; }
+.live .call { color: var(--term-agent); overflow-wrap: anywhere; }
+.live .res { display: block; color: var(--term-fg); }
+.live .res.ok { color: var(--term-ok); } .live .res.warn { color: var(--term-warn); } .live .res.bad { color: var(--term-bad); }
+.live .caret::after { content: "\2588"; margin-left: 4px; color: var(--term-agent); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Dialog */
+dialog { padding: 0; margin: 5vh auto auto; border: 1px solid var(--line); background: var(--surface); color: var(--fg); width: min(920px, calc(100vw - 32px)); max-height: 90vh; overflow: auto; }
+dialog::backdrop { background: rgba(8, 20, 38, 0.6); }
+.dlg-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 20px 0; background: var(--surface); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.dlg-head .tabs { padding-top: 6px; }
+.dlg-x { margin-bottom: 8px; }
+.dlg-body { padding: 20px; display: grid; gap: 18px; }
+.dlg-body h2 { font-size: 20px; }
+.dlg-body p { margin: 0; color: var(--muted); font-size: 14px; }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 700px) { .cards { grid-template-columns: 1fr; } }
+.card { border: 1px solid var(--line); padding: 14px; display: grid; gap: 6px; align-content: start; }
+.card.wide { grid-column: 1 / -1; background: var(--surface-2); }
+.card .ch { display: flex; align-items: center; gap: 10px; }
+.card p { font-size: 13px; }
+.card code { font-family: var(--font-mono); font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.matrix-wrap { overflow-x: auto; }
+table.matrix { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 13px; }
+table.matrix th { text-align: left; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 0 10px 8px 0; font-weight: 600; }
+table.matrix td { padding: 9px 10px 9px 0; border-top: 1px solid var(--line); vertical-align: top; }
+table.matrix td:first-child { font-weight: 600; }
+.calc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; }
+@media (max-width: 700px) { .calc { grid-template-columns: 1fr; } }
+.ctl label { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 600; }
+.ctl output { font-variant-numeric: tabular-nums; color: var(--agent); }
+.ctl input[type="range"] { width: 100%; margin: 8px 0 0; accent-color: var(--agent); }
+.outs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+@media (max-width: 700px) { .outs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.outs > div { background: var(--agent-soft); padding: 12px 14px; min-width: 0; }
+.outs .v { font-family: var(--font-display); font-size: 21px; font-weight: 700; line-height: 1.25; margin-top: 2px; }
+.outs .s { font-size: 11.5px; color: var(--muted); }
+.dlg-foot { font-size: 12px; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="banner" role="note">Demo environment · fictional bank, synthetic documents only · do not upload real customer data</div>
+
+<header class="top">
+  <div class="wrap">
+    <button class="brand" type="button" id="home" aria-label="Back to case queue">
+      <div class="mark">S</div>
+      <div>
+        <div class="brand-name">Seeblick Privatbank <span class="pill-live">KYC Agent · Live demo</span></div>
+        <div class="brand-sub">Fictional demo bank · Client onboarding</div>
+      </div>
+    </button>
+    <div class="top-act">
+      <button class="btn" type="button" id="crew-open">Crew &amp; controls</button>
+      <button class="btn" type="button" id="reset">↺ Reset demo</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="app"></main>
+<div class="sr" id="live-status" aria-live="polite"></div>
+<dialog id="crew-dialog" aria-labelledby="dlg-title"></dialog>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Reference data (all synthetic) ----------
+  var POLICY_VERSION = "KYC-POL-2026.3";
+  var MON = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
+
+  // The bank's own (fictional) policy clauses. Flags and decisions cite these by number.
+  var POL = {
+    "§2.1": "Names on the passport, proof of address and application must match at 90% or better.",
+    "§2.2": "Date of birth must match exactly between passport and application.",
+    "§2.4": "A valid government-issued photo ID is required before onboarding.",
+    "§3.2": "Proof of address must be issued within the last three months.",
+    "§3.4": "The address on the proof of address must match the application.",
+    "§4.1": "Any sign that a document was edited goes to Compliance.",
+    "§4.3": "Where identity is in doubt the agent does not contact the client. Compliance decides.",
+    "§5.1": "A look-alike screening hit is dismissed only when two independent identifiers disagree.",
+    "§5.3": "PEPs and persons close to PEPs need enhanced due diligence and senior-management approval.",
+    "§5.5": "Source of wealth must be evidenced for at least 90% of declared wealth.",
+    "§6.1": "Straight-through approval needs Low risk, no open flags, no sanctions candidates and every check at 95% confidence or better.",
+    "§7.2": "The agent drafts client messages. An officer reviews and sends them."
+  };
+
+  var LANES = [
+    { id: "doc", name: "Document agent", role: "Reads and authenticates documents", g: "D" },
+    { id: "id", name: "Identity agent", role: "Matches facts across sources", g: "I" },
+    { id: "scr", name: "Screening agent", role: "Sanctions, PEP and media", g: "S" },
+    { id: "risk", name: "Policy & risk agent", role: "Applies policy, rates risk", g: "R" }
+  ];
+
+  // Each step belongs to one agent lane. `at` and `dur` (ms) stage the run so the lanes overlap.
+  var STEPS = [
+    { id: "pp", short: "Passport", lane: "doc", label: "Read passport data page", tool: "ocr.extract(passport)", conf: 99, at: 600, dur: 800, scan: "pp", lit: ["p-name", "p-nat", "p-dob", "p-num", "p-iss", "p-exp"] },
+    { id: "mrz", short: "MRZ", lane: "doc", label: "Parse MRZ, validate check digits", tool: "mrz.validate(passport)", conf: 98, at: 1400, dur: 600, scan: "pp", lit: ["p-mrz"] },
+    { id: "bill", short: "Bill", lane: "doc", label: "Read proof of address", tool: "ocr.extract(bill)", conf: 99, at: 2000, dur: 800, scan: "bill", lit: ["b-name", "b-addr", "b-date", "b-acct", "b-amt"] },
+    { id: "forn", short: "Tamper check", lane: "doc", label: "Check both documents for tampering", tool: "forensics.analyse(passport, bill)", conf: 97, at: 2800, dur: 1000, scan: "both", lit: [] },
+    { id: "name", short: "Name", lane: "id", label: "Match name across documents", tool: "match.name(passport, bill, form)", conf: 97, at: 2800, dur: 600, scan: "", lit: ["p-name", "b-name", "a-name"] },
+    { id: "dob", short: "DOB", lane: "id", label: "Match date of birth", tool: "match.dob(passport, form)", conf: 99, at: 3400, dur: 500, scan: "", lit: ["p-dob", "a-dob"] },
+    { id: "addr", short: "Address", lane: "id", label: "Match address to the application", tool: "match.address(bill, form)", conf: 98, at: 3900, dur: 600, scan: "", lit: ["b-addr", "a-addr"] },
+    { id: "sanc", short: "Sanctions", lane: "scr", label: "Screen sanctions lists", tool: "screen.sanctions(name, dob)", conf: 98, at: 1400, dur: 900, scan: "", lit: ["p-name", "p-dob"] },
+    { id: "pep", short: "PEP", lane: "scr", label: "Screen PEP lists and relatives", tool: "screen.pep(name, dob, country)", conf: 96, at: 2300, dur: 800, scan: "", lit: ["p-name", "p-nat", "a-pep"] },
+    { id: "media", short: "Media", lane: "scr", label: "Triage adverse media", tool: "media.search(name, dob)", conf: 94, at: 3100, dur: 1200, scan: "", lit: [] },
+    { id: "val", short: "Validity", lane: "risk", label: "Check validity against policy", tool: "policy.check(§2.4, §3.2)", conf: 99, at: 2800, dur: 700, scan: "", lit: ["p-exp", "b-date"] },
+    { id: "rate", short: "Risk", lane: "risk", label: "Rate customer risk", tool: "risk.score(6 factors)", conf: 95, at: 4500, dur: 900, scan: "", lit: [] },
+    { id: "reco", short: "Recommend", lane: "risk", label: "Draft recommendation and rationale", tool: "case.recommend()", conf: 96, at: 5400, dur: 800, scan: "", lit: [] }
+  ];
+
+  var RECO_TONE = { CLEAR: "ok", REVIEW: "warn", ESCALATE: "bad" };
+  var SEV_TONE = { high: "bad", medium: "warn", low: "neutral" };
+  var LVL_TONE = { LOW: "ok", MEDIUM: "warn", HIGH: "bad" };
+  var FACTORS = ["Residence & nationality", "Occupation & wealth", "Product & channel", "PEP & sanctions", "Adverse media", "Identity assurance"];
+  var REVIEW_CYCLE = { LOW: ["08 Oct 2031", "5 years"], MEDIUM: ["08 Oct 2029", "3 years"], HIGH: ["08 Oct 2027", "1 year"] };
+  var CMP_EV = [["p-name", "b-name", "a-name"], ["p-dob", "a-dob"], ["b-addr", "a-addr"], ["p-exp"], ["b-date"]];
+
+  var PP_SIGNALS = [
+    ["MRZ check digits", "pass", ""],
+    ["Visual zone against MRZ", "pass", "Name, date of birth and expiry agree"],
+    ["Photo region", "pass", "Resolution and noise match the rest of the page"],
+    ["Fonts and glyph spacing", "pass", "Consistent across all fields"],
+    ["Layout against issuer template", "pass", "Matches the Alvorian passport specimen"]
+  ];
+  var BILL_SIGNALS = [
+    ["PDF metadata", "pass", "Produced by the issuer's billing system, never modified"],
+    ["Revision history", "pass", "Single revision"],
+    ["Fonts and glyph spacing", "pass", "Consistent across all fields"],
+    ["Compression analysis", "pass", "Uniform across the page"],
+    ["Issuer template and account format", "pass", "Matches Lakeside Energy statements"]
+  ];
+  var SUTTER_BILL = [
+    ["PDF metadata", "fail", "Last saved 28 Sep 2026 with a desktop PDF editor. Issuer statements are never modified."],
+    ["Revision history", "fail", "Two revisions. The earlier one reads bill date 25 Feb 2026."],
+    ["Fonts and glyph spacing", "fail", "Digits in the bill date and service address use a different weight and spacing."],
+    ["Compression analysis", "fail", "Two regions have a different compression history from the rest of the page."],
+    ["Issuer template and account format", "pass", "Matches Lakeside Energy statements"]
+  ];
+  var CLEAR_SCREEN = { sanc: { n: 0, hits: [] }, pep: { n: 0, hits: [] }, media: { n: 0, hits: [] } };
+
+  function ext(a, b) {
+    var o = {}, k;
+    for (k in a) if (Object.prototype.hasOwnProperty.call(a, k)) o[k] = a[k];
+    for (k in b) if (Object.prototype.hasOwnProperty.call(b, k)) o[k] = b[k];
+    return o;
+  }
+
+  // ---------- Passport MRZ (ICAO 9303, TD3). Built and verified from the data, never typed by hand. ----------
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function yymmdd(s) { var p = s.split(" "); return p[2].slice(2) + pad2(MON[p[1]]) + p[0]; }
+  function cd(s) {
+    var w = [7, 3, 1], sum = 0, i, ch, v;
+    for (i = 0; i < s.length; i++) {
+      ch = s.charAt(i);
+      v = ch === "<" ? 0 : /[0-9]/.test(ch) ? +ch : ch.charCodeAt(0) - 55;
+      sum += v * w[i % 3];
+    }
+    return String(sum % 10);
+  }
+  function mrzLines(pp) {
+    var parts = pp.name.split(", "), dob = yymmdd(pp.dob), exp = yymmdd(pp.exp), none = "<<<<<<<<<<<<<<";
+    var l1 = "P<ALV" + parts[0].toUpperCase().replace(/ /g, "<") + "<<" + parts[1].toUpperCase().replace(/ /g, "<");
+    while (l1.length < 44) l1 += "<";
+    var l2 = pp.num + cd(pp.num) + "ALV" + dob + cd(dob) + pp.sex + exp + cd(exp) + none + cd(none);
+    l2 += cd(l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 43));
+    return [l1, l2];
+  }
+  // Recomputes the five check digits from the printed line, the way the agent's mrz.validate tool does.
+  function mrzVerify(pp) {
+    var l = mrzLines(pp)[1], ok = 0;
+    if (cd(l.slice(0, 9)) === l.charAt(9)) ok++;
+    if (cd(l.slice(13, 19)) === l.charAt(19)) ok++;
+    if (cd(l.slice(21, 27)) === l.charAt(27)) ok++;
+    if (cd(l.slice(28, 42)) === l.charAt(42)) ok++;
+    if (cd(l.slice(0, 10) + l.slice(13, 20) + l.slice(21, 43)) === l.charAt(43)) ok++;
+    return { ok: ok, total: 5 };
+  }
+
+  // ---------- Synthetic cases ----------
+  var WEBER_NOTES = { pp: "9 fields extracted", bill: "5 fields extracted", name: "Names match · 100%", dob: "DOB matches", addr: "14 vs 41 · mismatch", val: "Passport valid · bill 19 days old" };
+  var NATARAJAN_RISK = [[3, "Standard-risk jurisdictions"], [3, "Researcher, modest assets"], [4, "Account and custody, remote onboarding"], [0, "No sanctions or PEP matches"], [0, "No relevant articles"]];
+
+  var CASES = [
+    {
+      id: "KYC-1042", name: "Elena Marchetti", initials: "EM", submitted: "Today, 09:14", lang: "IT",
+      reco: "CLEAR",
+      summary: "All identity, address and document-validity checks pass. Screening is clear.",
+      rationale: "Name, date of birth and address are consistent across the passport, the electricity bill and the application. The passport is valid to 13 Mar 2032 and the proof of address is 16 days old. No sanctions, PEP or adverse-media matches. Authenticity checks passed. Risk rating Low (12). Recommend approval.",
+      app: { name: "Elena Marchetti", dob: "18 Jun 1990", addr: "Via Lago 8, 6900 Bellavista", occ: "Architect, employed", assets: "CHF 0.4m", pep: "None declared" },
+      pp: { name: "MARCHETTI, Elena", sex: "F", dob: "18 Jun 1990", num: "ALV046291", iss: "14 Mar 2022", exp: "13 Mar 2032" },
+      bill: { name: "Elena Marchetti", addr: "Via Lago 8, 6900 Bellavista", date: "22 Sep 2026", acct: "LE-4829-1107", amt: "CHF 146.80" },
+      cmp: [
+        ["Full name", "Elena Marchetti", "Elena Marchetti", "Elena Marchetti", "ok", "100%"],
+        ["Date of birth", "18 Jun 1990", "—", "18 Jun 1990", "ok", "100%"],
+        ["Address", "—", "Via Lago 8", "Via Lago 8", "ok", "100%"],
+        ["Passport validity", "Valid to 13 Mar 2032", "—", "—", "ok", "Valid"],
+        ["Proof-of-address age", "—", "16 days", "—", "ok", "In policy"]
+      ],
+      flags: [], resolved: [],
+      notes: { pp: "9 fields extracted", bill: "5 fields extracted", name: "Names match · 100%", dob: "DOB matches", addr: "Address matches", val: "Passport valid · bill 16 days old" },
+      tone: {}, issues: {}, tags: {},
+      screen: CLEAR_SCREEN,
+      signals: { pp: PP_SIGNALS, bill: BILL_SIGNALS },
+      risk: [[3, "Standard-risk jurisdictions"], [3, "Salaried architect, modest assets"], [4, "Account and custody, remote onboarding"], [0, "No sanctions or PEP matches"], [0, "No relevant articles"], [2, "Every check passed at 96% confidence or better"]],
+      next: { type: "ready" }
+    },
+    {
+      id: "KYC-1043", name: "Jonas Weber", initials: "JW", submitted: "Today, 09:32", lang: "DE",
+      reco: "REVIEW",
+      summary: "One address mismatch needs confirmation from the client.",
+      rationale: "Address mismatch: the application says Seestrasse 41, the bill says Seestrasse 14, most likely a transposed digit. Two look-alike PEP names were dismissed on date of birth and nationality. Recommend asking the client to confirm the address before approval.",
+      app: { name: "Jonas Weber", dob: "02 Nov 1987", addr: "Seestrasse 41, 6900 Bellavista", occ: "Software engineer, employed", assets: "CHF 0.25m", pep: "None declared" },
+      pp: { name: "WEBER, Jonas", sex: "M", dob: "02 Nov 1987", num: "ALV581204", iss: "09 Jan 2023", exp: "08 Jan 2033" },
+      bill: { name: "Jonas Weber", addr: "Seestrasse 14, 6900 Bellavista", date: "19 Sep 2026", acct: "LE-5921-4480", amt: "CHF 92.35" },
+      cmp: [
+        ["Full name", "Jonas Weber", "Jonas Weber", "Jonas Weber", "ok", "100%"],
+        ["Date of birth", "02 Nov 1987", "—", "02 Nov 1987", "ok", "100%"],
+        ["Address", "—", "Seestrasse 14", "Seestrasse 41", "bad", "88%"],
+        ["Passport validity", "Valid to 08 Jan 2033", "—", "—", "ok", "Valid"],
+        ["Proof-of-address age", "—", "19 days", "—", "ok", "In policy"]
+      ],
+      flags: [{ t: "Address mismatch", s: "medium", p: "§3.4", ev: ["b-addr", "a-addr"], r: "House number 14 on the bill against 41 on the application. Likely a digit transposition. Ask the client to confirm which is correct." }],
+      resolved: [],
+      notes: WEBER_NOTES, tone: { addr: "bad" },
+      issues: { "b-addr": ["issue", "addr"], "a-addr": ["issue", "addr"] }, tags: {},
+      screen: {
+        sanc: { n: 0, hits: [] },
+        pep: { n: 2, hits: [
+          { who: "Jonas Weber", id: "b. 14 May 1961 · Deputy mayor, Alvoria", sim: 100, v: "dismissed", why: "Date of birth differs by 26 years and the occupation does not fit a software engineer. Two independent identifiers disagree, so the hit is dismissed (§5.1)." },
+          { who: "Jonas Webber", id: "b. 14 Mar 1987 · Regional councillor, Karvala", sim: 94, v: "dismissed", why: "Different day and month of birth, and a different nationality (Karvalan, the applicant is Alvorian). Dismissed under §5.1." }
+        ] },
+        media: { n: 3, hits: [
+          { who: "Weber wins regional time trial", id: "Sports pages · 2025", v: "dismissed", why: "A cyclist born in 1994. Different person." },
+          { who: "New owner for Hotel Weber", id: "Trade press · 2024", v: "dismissed", why: "Names a hotelier called Jonas Weber, aged 58. Different person." },
+          { who: "J. Weber joins logistics board", id: "Business wire · 2023", v: "dismissed", why: "Born 1966 and based abroad. Different person." }
+        ] }
+      },
+      signals: { pp: PP_SIGNALS, bill: BILL_SIGNALS },
+      risk: [[3, "Standard-risk jurisdictions"], [3, "Salaried engineer, modest assets"], [4, "Account and custody, remote onboarding"], [0, "Two look-alike PEP names dismissed"], [0, "Three articles, none about this client"], [10, "Address on the form differs from the proof of address"]],
+      next: {
+        type: "outreach", lang: "DE", subject: "Bitte bestätigen Sie Ihre Wohnadresse",
+        body: "Guten Tag Herr Weber\n\nVielen Dank für Ihren Antrag bei der Seeblick Privatbank. Bei der Prüfung Ihrer Unterlagen ist uns eine Abweichung aufgefallen: Im Antrag steht «Seestrasse 41», auf der Stromrechnung «Seestrasse 14».\n\nBitte bestätigen Sie uns kurz, welche Hausnummer stimmt. Eine Antwort auf diese Nachricht im Kundenportal genügt.\n\nFreundliche Grüsse\nOnboarding-Team, Seeblick Privatbank",
+        gloss: "Good day Mr Weber. Thank you for your application to Seeblick Privatbank. While checking your documents we noticed a discrepancy: the application says “Seestrasse 41”, the electricity bill says “Seestrasse 14”.\n\nPlease confirm which house number is correct. A reply to this message in the client portal is enough.\n\nKind regards, Onboarding team, Seeblick Privatbank",
+        reply: "Guten Tag\n\nDas war ein Tippfehler von mir. Richtig ist Seestrasse 14. Entschuldigung und danke!\n\nJ. Weber",
+        read: "Agent reading: the client confirms Seestrasse 14 and says the form had a typo.",
+        rerun: ["addr", "rate", "reco"]
+      },
+      after: {
+        app: { name: "Jonas Weber", dob: "02 Nov 1987", addr: "Seestrasse 14, 6900 Bellavista", occ: "Software engineer, employed", assets: "CHF 0.25m", pep: "None declared" },
+        tags: { "a-addr": "Corrected by client" },
+        cmp: [
+          ["Full name", "Jonas Weber", "Jonas Weber", "Jonas Weber", "ok", "100%"],
+          ["Date of birth", "02 Nov 1987", "—", "02 Nov 1987", "ok", "100%"],
+          ["Address", "—", "Seestrasse 14", "Seestrasse 14", "ok", "100%"],
+          ["Passport validity", "Valid to 08 Jan 2033", "—", "—", "ok", "Valid"],
+          ["Proof-of-address age", "—", "19 days", "—", "ok", "In policy"]
+        ],
+        flags: [],
+        resolved: [{ t: "Address mismatch", r: "The client confirmed Seestrasse 14 on 08 Oct. The application is corrected and now matches the bill." }],
+        reco: "CLEAR",
+        summary: "The client confirmed Seestrasse 14. All checks now pass.",
+        rationale: "The client confirmed Seestrasse 14 on 08 Oct and the application is corrected. Name, date of birth and address now match across all three sources. Two look-alike PEP names were dismissed on date of birth and nationality. Risk rating Low (12). Recommend approval.",
+        notes: { addr: "Client confirmed 14 · match" }, tone: { addr: "" },
+        issues: {},
+        risk: [[3, "Standard-risk jurisdictions"], [3, "Salaried engineer, modest assets"], [4, "Account and custody, remote onboarding"], [0, "Two look-alike PEP names dismissed"], [0, "Three articles, none about this client"], [2, "Every check passed after the client's correction"]],
+        next: { type: "ready" }
+      }
+    },
+    {
+      id: "KYC-1044", name: "Priya Natarajan", initials: "PN", submitted: "Today, 10:06", lang: "EN",
+      reco: "REVIEW",
+      summary: "The name is a partial match and the proof of address is outside policy.",
+      rationale: "The proof of address is dated 08 Mar 2026, seven months old and outside the three-month policy. It shows “P. Nataraja”, a 79% name match. Recommend asking the client for a recent document in their full name.",
+      app: { name: "Priya Natarajan", dob: "27 Jan 1993", addr: "Alpenweg 22, 6901 Bellavista", occ: "Biomedical researcher, employed", assets: "CHF 0.15m", pep: "None declared" },
+      pp: { name: "NATARAJAN, Priya", sex: "F", dob: "27 Jan 1993", num: "ALV774190", iss: "30 May 2021", exp: "29 May 2031" },
+      bill: { name: "P. Nataraja", addr: "Alpenweg 22, 6901 Bellavista", date: "08 Mar 2026", acct: "LE-7740-2198", amt: "CHF 118.10" },
+      cmp: [
+        ["Full name", "Priya Natarajan", "P. Nataraja", "Priya Natarajan", "warn", "79%"],
+        ["Date of birth", "27 Jan 1993", "—", "27 Jan 1993", "ok", "100%"],
+        ["Address", "—", "Alpenweg 22", "Alpenweg 22", "ok", "100%"],
+        ["Passport validity", "Valid to 29 May 2031", "—", "—", "ok", "Valid"],
+        ["Proof-of-address age", "—", "7 months", "—", "bad", "Over 3-month limit"]
+      ],
+      flags: [
+        { t: "Stale proof of address", s: "high", p: "§3.2", ev: ["b-date"], r: "The bill is dated 08 Mar 2026, seven months ago. Policy requires proof of address issued within the last three months." },
+        { t: "Name partial match", s: "low", p: "§2.1", ev: ["p-name", "b-name", "a-name"], r: "The bill shows an initial and drops the final letter of the surname (79% similarity). Plausibly a billing abbreviation, but confirm against the new bill." }
+      ],
+      resolved: [],
+      notes: { pp: "9 fields extracted", bill: "5 fields extracted", name: "Partial match · 79%", dob: "DOB matches", addr: "Address matches", val: "Bill 7 months old · over limit" },
+      tone: { name: "warn", val: "bad" },
+      issues: { "b-name": ["partial", "name"], "b-date": ["issue", "val"] }, tags: {},
+      screen: CLEAR_SCREEN,
+      signals: { pp: PP_SIGNALS, bill: BILL_SIGNALS },
+      risk: NATARAJAN_RISK.concat([[22, "Proof of address outside policy and name partly matched"]]),
+      next: {
+        type: "outreach", lang: "EN", subject: "A more recent proof of address, please",
+        body: "Dear Priya Natarajan\n\nThank you for your application to Seeblick Privatbank. The electricity bill you sent is dated 8 March 2026. Our policy asks for proof of address issued within the last three months, so we cannot accept it.\n\nCould you upload a more recent document in your full name, such as a utility bill, bank statement or tax notice? The bill we received reads “P. Nataraja”, so a document in your full name would settle both points at once.\n\nKind regards\nOnboarding team, Seeblick Privatbank",
+        gloss: "",
+        reply: "Hello\n\nSorry, I attached an old bill by mistake. This month's bill is attached.\n\nPriya",
+        read: "Agent reading: new bill received, dated 29 Sep 2026, in the name Priya Natarajan.",
+        rerun: ["bill", "forn", "name", "addr", "val", "rate", "reco"]
+      },
+      after: {
+        bill: { name: "Priya Natarajan", addr: "Alpenweg 22, 6901 Bellavista", date: "29 Sep 2026", acct: "LE-7740-2198", amt: "CHF 109.40" },
+        newDoc: "bill",
+        cmp: [
+          ["Full name", "Priya Natarajan", "Priya Natarajan", "Priya Natarajan", "ok", "100%"],
+          ["Date of birth", "27 Jan 1993", "—", "27 Jan 1993", "ok", "100%"],
+          ["Address", "—", "Alpenweg 22", "Alpenweg 22", "ok", "100%"],
+          ["Passport validity", "Valid to 29 May 2031", "—", "—", "ok", "Valid"],
+          ["Proof-of-address age", "—", "9 days", "—", "ok", "In policy"]
+        ],
+        flags: [],
+        resolved: [
+          { t: "Stale proof of address", r: "The client supplied a bill dated 29 Sep 2026, nine days old and inside policy." },
+          { t: "Name partial match", r: "The new bill is in the name Priya Natarajan and matches at 100%." }
+        ],
+        reco: "CLEAR",
+        summary: "The client sent a recent bill in their full name. All checks now pass.",
+        rationale: "The client supplied a bill dated 29 Sep 2026 in the name Priya Natarajan. The name matches at 100%, the document is nine days old and passes the authenticity checks. Date of birth and address match. Risk rating Low (12). Recommend approval.",
+        notes: { bill: "5 fields extracted · new document", name: "Names match · 100%", val: "Passport valid · new bill 9 days old" }, tone: { name: "", val: "" },
+        issues: {},
+        risk: NATARAJAN_RISK.concat([[2, "Every check passed after the new bill"]]),
+        next: { type: "ready" }
+      }
+    },
+    {
+      id: "KYC-1045", name: "Marc Dubois", initials: "MD", submitted: "Today, 10:41", lang: "FR",
+      reco: "ESCALATE",
+      summary: "Two high-severity identity issues. Escalate to Compliance.",
+      rationale: "The passport expired on 08 Aug 2026 and its date of birth (11 Apr 1978) differs from the application (12 Apr 1978). Identity is not established. Escalating to Compliance. No client contact until they decide.",
+      app: { name: "Marc Dubois", dob: "12 Apr 1978", addr: "Rue des Pins 6, 6902 Bellavista", occ: "Hotelier, self-employed", assets: "CHF 1.2m", pep: "None declared" },
+      pp: { name: "DUBOIS, Marc", sex: "M", dob: "11 Apr 1978", num: "ALV190337", iss: "09 Aug 2016", exp: "08 Aug 2026" },
+      bill: { name: "Marc Dubois", addr: "Rue des Pins 6, 6902 Bellavista", date: "24 Sep 2026", acct: "LE-3901-8824", amt: "CHF 204.55" },
+      cmp: [
+        ["Full name", "Marc Dubois", "Marc Dubois", "Marc Dubois", "ok", "100%"],
+        ["Date of birth", "11 Apr 1978", "—", "12 Apr 1978", "bad", "1 day apart"],
+        ["Address", "—", "Rue des Pins 6", "Rue des Pins 6", "ok", "100%"],
+        ["Passport validity", "Expired 08 Aug 2026", "—", "—", "bad", "Expired"],
+        ["Proof-of-address age", "—", "14 days", "—", "ok", "In policy"]
+      ],
+      flags: [
+        { t: "Expired identity document", s: "high", p: "§2.4", ev: ["p-exp"], r: "The passport expired on 08 Aug 2026, two months ago. A current government-issued ID is required before onboarding." },
+        { t: "Date of birth mismatch", s: "high", p: "§2.2", ev: ["p-dob", "a-dob"], r: "Application says 12 Apr 1978; passport says 11 Apr 1978. A one-day gap can be a typo, but combined with an expired ID it needs identity verification." }
+      ],
+      resolved: [],
+      notes: { pp: "9 fields extracted", bill: "5 fields extracted", name: "Names match · 100%", dob: "11 Apr vs 12 Apr · mismatch", addr: "Address matches", val: "Passport expired 2 months ago" },
+      tone: { dob: "bad", val: "bad" },
+      issues: { "p-dob": ["issue", "dob"], "a-dob": ["issue", "dob"], "p-exp": ["issue", "val"] }, tags: {},
+      screen: CLEAR_SCREEN,
+      signals: { pp: PP_SIGNALS, bill: BILL_SIGNALS },
+      risk: [[3, "Standard-risk jurisdictions"], [6, "Self-employed hotelier, CHF 1.2m"], [4, "Account and custody, remote onboarding"], [0, "No sanctions or PEP matches"], [0, "No relevant articles"], [50, "Passport expired and date of birth conflicts, so identity is not established"]],
+      next: {
+        type: "hold", title: "Agent held back: no message queued",
+        text: "Two independent identity issues. Policy §4.3 leaves contact to Compliance, so the agent prepared a pack and a draft instead of writing to the client.",
+        pack: ["Case summary and flags", "Application and passport side by side", "Document images and extracted fields", "Screening results (clear)", "Audit trail"],
+        draft: {
+          lang: "FR", subject: "Pièce d'identité en cours de validité",
+          body: "Bonjour Monsieur Dubois\n\nMerci de votre demande d'ouverture de compte auprès de Seeblick Privatbank. Pour poursuivre l'examen de votre dossier, nous avons besoin d'une pièce d'identité en cours de validité ainsi que de la confirmation de votre date de naissance.\n\nUne réponse à ce message dans le portail client suffit.\n\nCordialement\nÉquipe d'accueil, Seeblick Privatbank",
+          gloss: "Good day Mr Dubois. Thank you for applying to open an account with Seeblick Privatbank. To continue reviewing your file we need a valid identity document and confirmation of your date of birth. A reply to this message in the client portal is enough.\n\nKind regards, Onboarding team, Seeblick Privatbank"
+        }
+      }
+    },
+    {
+      id: "KYC-1046", name: "Oliver Sutter", initials: "OS", submitted: "Today, 11:05", lang: "DE",
+      reco: "ESCALATE",
+      summary: "Every field matches, but the proof of address was edited after issue. Escalate to Compliance.",
+      rationale: "All fields match the application, but forensic analysis shows the bill date and service address were edited after issue. An earlier revision embedded in the PDF is dated 25 Feb 2026, outside the three-month policy. Possible document tampering. Escalating to Compliance. No client contact.",
+      app: { name: "Oliver Sutter", dob: "03 Mar 1984", addr: "Bahnhofstrasse 73, 6903 Bellavista", occ: "Consultant, self-employed", assets: "CHF 0.9m", pep: "None declared" },
+      pp: { name: "SUTTER, Oliver", sex: "M", dob: "03 Mar 1984", num: "ALV663502", iss: "21 Feb 2024", exp: "20 Feb 2034" },
+      bill: { name: "Oliver Sutter", addr: "Bahnhofstrasse 73, 6903 Bellavista", date: "25 Sep 2026", acct: "LE-6635-0271", amt: "CHF 131.20" },
+      cmp: [
+        ["Full name", "Oliver Sutter", "Oliver Sutter", "Oliver Sutter", "ok", "100%"],
+        ["Date of birth", "03 Mar 1984", "—", "03 Mar 1984", "ok", "100%"],
+        ["Address", "—", "Bahnhofstrasse 73", "Bahnhofstrasse 73", "ok", "100%"],
+        ["Passport validity", "Valid to 20 Feb 2034", "—", "—", "ok", "Valid"],
+        ["Proof-of-address age", "—", "13 days as shown", "—", "bad", "Original is 7 months"]
+      ],
+      flags: [
+        { t: "Proof of address edited after issue", s: "high", p: "§4.1", ev: ["b-date", "b-addr"], r: "Forensic analysis found edits to the bill date and the service address. An earlier revision embedded in the PDF reads 25 Feb 2026, seven months ago. Every field matches the application, so a data-only check would have passed this case." },
+        { t: "File metadata does not match the issuer", s: "medium", p: "§4.1", ev: ["b-acct"], r: "The PDF was last saved by a desktop editor on 28 Sep 2026. Lakeside Energy statements are produced by its billing system and are never modified." }
+      ],
+      resolved: [],
+      notes: { pp: "9 fields extracted", bill: "5 fields extracted", name: "Names match · 100%", dob: "DOB matches", addr: "Address matches", val: "Looks 13 days old · earlier revision 7 months" },
+      tone: { val: "bad" },
+      issues: { "b-date": ["tamper", "forn"], "b-addr": ["tamper", "forn"] }, tags: {},
+      screen: CLEAR_SCREEN,
+      signals: { pp: PP_SIGNALS, bill: SUTTER_BILL },
+      risk: [[3, "Standard-risk jurisdictions"], [6, "Self-employed consultant"], [4, "Account and custody, remote onboarding"], [0, "No sanctions or PEP matches"], [0, "No relevant articles"], [55, "Proof of address edited after issue"]],
+      next: {
+        type: "hold", title: "Agent held back: do not contact the client",
+        text: "Writing to the client about a possible forgery could tip them off. Policy §4.3 leaves contact to Compliance, so no message was drafted.",
+        pack: ["Forensic report: revision history, font and compression analysis", "Edited bill next to the recovered earlier revision", "Case timeline and audit trail", "Draft escalation memo for Compliance"]
+      }
+    },
+    {
+      id: "KYC-1047", name: "Isabel Fontana", initials: "IF", submitted: "Today, 11:38", lang: "EN",
+      reco: "ESCALATE",
+      summary: "Identity checks pass, but the client is the spouse of a sitting Deputy Minister and did not declare it. Escalate for enhanced due diligence.",
+      rationale: "Identity and documents are sound. The PEP database lists the client as spouse of B. Castellan, Deputy Minister of Infrastructure in Alvoria, and the application declares no public-office connections. Source of wealth is 96% evidenced. EDD pack prepared. Escalating to Compliance for senior-management approval.",
+      app: { name: "Isabel Fontana", dob: "09 Sep 1981", addr: "Quai du Lac 15, 6900 Bellavista", occ: "Company director", assets: "CHF 6.0m", pep: "None declared" },
+      pp: { name: "FONTANA, Isabel", sex: "F", dob: "09 Sep 1981", num: "ALV305518", iss: "12 Jun 2024", exp: "11 Jun 2034" },
+      bill: { name: "Isabel Fontana", addr: "Quai du Lac 15, 6900 Bellavista", date: "29 Sep 2026", acct: "LE-2305-6612", amt: "CHF 312.40" },
+      cmp: [
+        ["Full name", "Isabel Fontana", "Isabel Fontana", "Isabel Fontana", "ok", "100%"],
+        ["Date of birth", "09 Sep 1981", "—", "09 Sep 1981", "ok", "100%"],
+        ["Address", "—", "Quai du Lac 15", "Quai du Lac 15", "ok", "100%"],
+        ["Passport validity", "Valid to 11 Jun 2034", "—", "—", "ok", "Valid"],
+        ["Proof-of-address age", "—", "9 days", "—", "ok", "In policy"]
+      ],
+      flags: [
+        { t: "PEP relationship not declared", s: "high", p: "§5.3", ev: ["a-pep"], r: "The PEP database lists the client as spouse of B. Castellan, Deputy Minister of Infrastructure, Republic of Alvoria (in office). The application declares no public-office connections. This may be an oversight, so confirm with the client. Enhanced due diligence and senior-management approval are required." },
+        { t: "Adverse media, indirect", s: "medium", p: "§5.3", ev: [], r: "One of 14 articles links the spouse's ministry to a procurement inquiry (14 Nov 2025). It names no wrongdoing by the client. Cover it in the EDD questions." },
+        { t: "Source of wealth partly unevidenced", s: "low", p: "§5.5", ev: ["a-assets"], r: "CHF 0.25m of declared savings (4% of declared wealth) has no supporting evidence yet. Coverage is above the 90% threshold. Ask for account statements as part of EDD." }
+      ],
+      resolved: [],
+      notes: { pp: "9 fields extracted", bill: "5 fields extracted", name: "Names match · 100%", dob: "DOB matches", addr: "Address matches", val: "Passport valid · bill 9 days old" },
+      tone: {},
+      issues: { "a-pep": ["issue", "pep"] }, tags: {},
+      screen: {
+        sanc: { n: 0, hits: [] },
+        pep: { n: 1, hits: [
+          { who: "Bruno Castellan", id: "b. 1976 · Deputy Minister of Infrastructure, Alvoria (in office)", rel: "spouse of the applicant", v: "match", why: "The PEP database records Isabel Fontana, b. 09 Sep 1981, as spouse. Name, date of birth and former address all match the applicant. The application declares no public-office connections." }
+        ] },
+        media: { n: 14, hits: [
+          { who: "Parliament opens inquiry into road tender awards", id: "Alvoria Gazette · 14 Nov 2025", v: "relevant", why: "Names the spouse's ministry and lists the deputy minister as a witness. No allegation against the applicant." }
+        ] }
+      },
+      signals: { pp: PP_SIGNALS, bill: BILL_SIGNALS },
+      sow: {
+        declared: 6.0, threshold: 90,
+        rows: [
+          ["Sale of shares, Fontana Logistics AG (2019)", 4.2, 4.2, "Share purchase agreement p.14, bank credit advice"],
+          ["Inheritance, estate of father (2021)", 1.1, 1.1, "Probate certificate"],
+          ["Employment and savings (2008 to 2019)", 0.7, 0.45, "Tax assessments 2016 to 2019"]
+        ]
+      },
+      risk: [[8, "Resident in Switzerland, spouse holds office in Alvoria"], [8, "Company director, CHF 6.0m assets"], [5, "Wealth-management mandate"], [35, "Spouse is a PEP and the application did not say so"], [8, "One article links the spouse's ministry to an inquiry"], [2, "Every check passed"]],
+      next: {
+        type: "edd", title: "Enhanced due diligence pack prepared",
+        text: "Policy §5.3 needs a Compliance opinion and senior-management approval. The agent has drafted what it can.",
+        items: [["Client profile and purpose of the relationship", "done"], ["Identity and screening results", "done"], ["PEP relationship analysis", "draft"], ["Source of wealth reconciliation", "done"], ["Adverse media summary", "done"], ["Questions for the client", "draft"], ["Compliance opinion", "pending"], ["Senior-management approval", "pending"]]
+      }
+    }
+  ];
+
+  // ---------- State ----------
+  var state;
+  var ticker = null;
+  var app = document.getElementById("app");
+  var dialog = document.getElementById("crew-dialog");
+  var dlgTab = "crew";
+
+  function freshCase() {
+    return {
+      st: {}, feed: [], started: {}, timers: [], t0: 0, elapsed: 0, sched: null,
+      running: false, done: false, rerun: false, replied: false,
+      tab: "results", crew: "open", forensic: false, open: {}, pin: [], hover: [], seen: false,
+      decision: null, by: null, override: false, comment: "", draft: "", err: false, log: [], json: null,
+      out: null, msg: "", sentAt: "", replyAt: ""
+    };
+  }
+  function freshState() {
+    var s = { view: "queue", stp: false, batch: null, cases: {} };
+    CASES.forEach(function (c) { s.cases[c.id] = freshCase(); });
+    return s;
+  }
+  state = freshState();
+
+  // ---------- Helpers ----------
+  function byId(id) { return CASES.filter(function (c) { return c.id === id; })[0]; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); }
+  function $(sel) { return document.querySelector(sel); }
+  function now() { return new Date().toTimeString().slice(0, 8); }
+  function secs(ms) { return (Math.max(0, ms) / 1000).toFixed(1) + " s"; }
+  function addLog(cs, kind, text) { cs.log.push({ time: now(), kind: kind, text: text }); }
+  function laneOf(s) { return LANES.filter(function (l) { return l.id === s.lane; })[0]; }
+  function stepById(id) { return STEPS.filter(function (s) { return s.id === id; })[0]; }
+  function later(cs, fn, ms) { cs.timers.push(setTimeout(fn, ms)); }
+  function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
+  var WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+
+  // The case as the agent currently sees it: the original submission, plus whatever the client has supplied since.
+  function D(c) {
+    var cs = state.cases[c.id], a = c.after, d;
+    if (!a || !cs.replied) return c;
+    d = ext(c, a);
+    d.notes = ext(c.notes, a.notes || {});
+    d.tone = ext(c.tone, a.tone || {});
+    d.tags = ext(c.tags || {}, a.tags || {});
+    return d;
+  }
+  function riskOf(d) {
+    var score = d.risk.reduce(function (a, f) { return a + f[0]; }, 0);
+    return { score: score, level: score >= 60 ? "HIGH" : score >= 30 ? "MEDIUM" : "LOW" };
+  }
+  function screenStats(d) {
+    var st = { dismissed: 0, matches: 0, relevant: 0, sancCandidates: d.screen.sanc.n };
+    ["sanc", "pep", "media"].forEach(function (k) {
+      d.screen[k].hits.forEach(function (h) {
+        if (h.v === "dismissed") st.dismissed++;
+        else if (h.v === "match") st.matches++;
+        else if (h.v === "relevant") st.relevant++;
+      });
+    });
+    return st;
+  }
+  function sowStats(c) {
+    var tot = 0, ev = 0;
+    c.sow.rows.forEach(function (x) { tot += x[1]; ev += x[2]; });
+    return { tot: tot, ev: ev, cov: Math.round(ev / tot * 100) };
+  }
+  function signalRows(c, d) {
+    var pp = d.signals.pp.map(function (r, i) {
+      if (i !== 0) return r;
+      var m = mrzVerify(c.pp);
+      return [r[0], m.ok === m.total ? "pass" : "fail", "Recomputed from the MRZ: " + m.ok + " of " + m.total + " valid"];
+    });
+    return { pp: pp, bill: d.signals.bill };
+  }
+  function stpEligible(d) { return d.reco === "CLEAR" && riskOf(d).level === "LOW" && d.screen.sanc.n === 0; }
+  function doneCount(cs) { return STEPS.filter(function (s) { return cs.st[s.id] === "done"; }).length; }
+  function nextOf(c, d) { return d.next || c.next; }
+
+  // What a finished step reports. Most of it is computed from the case data so the notes can never disagree with the results.
+  function stepNote(c, d, s) {
+    var id = s.id, n = d.notes[id] || "", t = d.tone[id] || "", sc = d.screen, r, rows, fails, k, hits, m;
+    if (id === "mrz") {
+      m = mrzVerify(c.pp);
+      return [m.ok + " of " + m.total + " check digits valid · matches visual zone", m.ok === m.total ? "" : "bad"];
+    }
+    if (id === "forn") {
+      rows = signalRows(c, d); fails = 0;
+      rows.pp.concat(rows.bill).forEach(function (x) { if (x[1] === "fail") fails++; });
+      return [fails ? fails + " of 10 signals failed · edits found" : "10 signals passed", fails ? "bad" : ""];
+    }
+    if (id === "sanc" || id === "pep" || id === "media") {
+      k = sc[id]; hits = k.hits;
+      var match = hits.filter(function (h) { return h.v === "match"; });
+      var rel = hits.filter(function (h) { return h.v === "relevant"; });
+      if (match.length) return [plural(match.length, "match", "matches") + " · " + match[0].rel, "bad"];
+      if (rel.length) return [rel.length + " of " + k.n + " articles relevant · indirect", "warn"];
+      if (k.n === 0) return [id === "media" ? "No articles found" : "No candidates", ""];
+      return [id === "media" ? plural(k.n, "article", "articles") + ", none about this client" : plural(k.n, "look-alike", "look-alikes") + " dismissed with reasons", ""];
+    }
+    if (id === "rate") { r = riskOf(d); return [r.level + " · score " + r.score, r.level === "HIGH" ? "bad" : r.level === "MEDIUM" ? "warn" : ""]; }
+    if (id === "reco") return [d.reco, d.reco === "ESCALATE" ? "bad" : d.reco === "REVIEW" ? "warn" : ""];
+    return [n, t];
+  }
+
+  function fld(id, k, v, extra, d) {
+    var tag = d && d.tags && d.tags[id] ? '<span class="tag">' + esc(d.tags[id]) + "</span>" : "";
+    return '<div class="fld ' + (extra || "") + '" data-f="' + id + '"><div class="k">' + k + tag + '</div><div class="val">' + esc(v) + "</div></div>";
+  }
+  var SILHOUETTE = '<svg viewBox="0 0 70 90" aria-hidden="true"><circle cx="35" cy="30" r="16" fill="currentColor" opacity="0.35"/><path d="M5 90c0-20 14-34 30-34s30 14 30 34z" fill="currentColor" opacity="0.35"/></svg>';
+
+  // ---------- Queue view ----------
+  function queueOrder() {
+    var rank = { ESCALATE: 0, REVIEW: 1, CLEAR: 2 };
+    var list = CASES.map(function (c, i) { return { c: c, i: i }; });
+    if (state.batch && state.batch.end) {
+      list.sort(function (a, b) {
+        var ka = (state.cases[a.c.id].decision ? 10 : 0) + rank[D(a.c).reco];
+        var kb = (state.cases[b.c.id].decision ? 10 : 0) + rank[D(b.c).reco];
+        return ka - kb || a.i - b.i;
+      });
+    }
+    return list.map(function (x) { return x.c; });
+  }
+
+  function statusCell(c) {
+    var cs = state.cases[c.id], d = D(c), n, cur, i, bars = "";
+    if (cs.decision) return '<span class="chip neutral">Decided · ' + esc(cs.decision) + (cs.by === "agent" ? " by agent" : "") + "</span>";
+    if (cs.running) {
+      STEPS.forEach(function (s) { bars += '<i class="' + (cs.st[s.id] === "done" ? "on" : cs.st[s.id] === "run" ? "cur" : "") + '"></i>'; });
+      cur = null;
+      for (i = cs.feed.length - 1; i >= 0; i--) { if (cs.st[cs.feed[i]] === "run") { cur = stepById(cs.feed[i]); break; } }
+      n = Date.now() < cs.t0 ? "Queued" : cur ? laneOf(cur).name + " · " + cur.tool : "Planning the run";
+      return '<div class="prog" aria-hidden="true">' + bars + '</div><div class="stxt">' + esc(n) + "</div>";
+    }
+    if (cs.done) {
+      return '<span class="chip ' + RECO_TONE[d.reco] + '">Agent: ' + d.reco + "</span>" +
+        (cs.out === "sent" ? '<div class="subline">Message sent · awaiting client</div>' : cs.out === "draft" ? '<div class="subline">Client message drafted</div>' : d.flags.length ? '<div class="subline">' + plural(d.flags.length, "flag", "flags") + "</div>" : "");
+    }
+    return '<span class="chip agent">Awaiting agent</span>';
+  }
+  function riskCell(c) {
+    var cs = state.cases[c.id];
+    if (!cs.done) return '<span class="cell-muted">—</span>';
+    var r = riskOf(D(c));
+    return '<span class="chip nodot ' + LVL_TONE[r.level] + '">' + r.level + " " + r.score + "</span>";
+  }
+  function crewCells() {
+    return LANES.map(function (ln) {
+      var steps = STEPS.filter(function (s) { return s.lane === ln.id; }), total = steps.length * CASES.length, done = 0, active = 0, txt, cls = "";
+      CASES.forEach(function (c) {
+        var cs = state.cases[c.id];
+        steps.forEach(function (s) { if (cs.st[s.id] === "done") done++; else if (cs.st[s.id] === "run") active++; });
+      });
+      if (active) { txt = "Working · " + active + " active"; cls = "busy"; }
+      else if (done === total) { txt = "Done · " + done + " checks"; cls = "fin"; }
+      else if (done) txt = "Idle · " + done + " of " + total + " checks";
+      else txt = "Ready";
+      return '<div class="crew-cell ' + cls + '"><span class="glyph" aria-hidden="true">' + ln.g + '</span><div class="crew-txt"><div class="crew-name">' + esc(ln.name) + '</div><div class="crew-state">' + txt + '</div><span class="crew-bar" aria-hidden="true"><i style="width:' + Math.round(done / total * 100) + '%"></i></span></div></div>';
+    }).join("");
+  }
+  function missionAct() {
+    var running = CASES.some(function (c) { return state.cases[c.id].running; });
+    var idle = CASES.filter(function (c) { var cs = state.cases[c.id]; return !cs.running && !cs.done; }).length, label;
+    if (running) label = "Agent crew working…";
+    else if (idle) label = "► Run agent crew on " + idle + (idle === 1 ? " case" : " cases");
+    else label = "All cases processed";
+    return '<div class="act-row"><button class="btn agent big" type="button" data-runall ' + (running || !idle ? "disabled" : "") + ">" + label + "</button></div>" +
+      '<label class="switch"><input type="checkbox" data-stp ' + (state.stp ? "checked" : "") + '><span class="track" aria-hidden="true"></span>' +
+      "<span><b>Straight-through for clean, low-risk cases</b><br>The agent approves them itself under policy §6.1. Off by default.</span></label>";
+  }
+  // Live totals for the queue. The counts come from the cases themselves; the clock is the staged demo time.
+  function scoreboard() {
+    var b = state.batch, n = CASES.length, done = 0, checks = 0, flags = 0, dismissed = 0, cls, sub;
+    CASES.forEach(function (c) {
+      var cs = state.cases[c.id], d;
+      checks += doneCount(cs);
+      if (cs.done) { d = D(c); done++; flags += d.flags.length; dismissed += screenStats(d).dismissed; }
+    });
+    cls = !b ? "idle" : b.end ? "fin" : "going";
+    sub = !b ? "Press the green button to start" : '<span class="clock" data-clock>' + secs((b.end || Date.now()) - b.start) + "</span> · demo timings are staged";
+    function tile(label, v, of, s) { return '<div><div class="label">' + label + '</div><div class="v">' + v + (of ? " <small>of " + of + "</small>" : "") + '</div><div class="s">' + s + "</div></div>"; }
+    return '<section class="score ' + cls + '" aria-label="Run totals">' +
+      tile("Cases triaged", done, n, sub) +
+      tile("Checks run", checks, n * STEPS.length, "Across 4 agents, in parallel") +
+      tile("Flags raised", flags, 0, "Each cites a policy clause and its evidence") +
+      tile("Look-alike hits dismissed", dismissed, 0, "Each with a written reason") + "</section>";
+  }
+
+  function renderQueue() {
+    var rows = queueOrder().map(function (c) {
+      return '<button class="row" type="button" data-open="' + c.id + '">' +
+        '<div class="who"><span class="avatar">' + c.initials + '</span><div><b>' + esc(c.name) + '</b><span class="hint">New client onboarding</span></div></div>' +
+        '<div class="cell-muted mono hide-sm">' + c.id + "</div>" +
+        '<div class="cell-muted hide-sm">' + c.submitted + "</div>" +
+        '<div data-status="' + c.id + '">' + statusCell(c) + "</div>" +
+        '<div class="hide-sm" data-risk="' + c.id + '">' + riskCell(c) + "</div>" +
+        '<div class="chev hide-sm" aria-hidden="true">›</div></button>';
+    }).join("");
+    app.innerHTML =
+      '<div class="queue-head"><div><div class="label" style="color:var(--agent)">Compliance operations</div>' +
+      "<h1>Client onboarding queue</h1><p>" + WORDS[CASES.length] + " new applicants. The KYC agent crew checks each one; an officer makes the call.</p></div></div>" +
+      '<section class="mission" aria-label="Agent crew"><div class="crew" data-crew>' + crewCells() + '</div><div class="mission-act" data-act>' + missionAct() + "</div></section>" +
+      '<div data-score>' + scoreboard() + "</div>" +
+      '<div class="table"><div class="row head"><span class="label">Applicant</span><span class="label hide-sm">Case</span><span class="label hide-sm">Submitted</span><span class="label">Status</span><span class="label hide-sm">Risk</span><span></span></div>' + rows + "</div>" +
+      '<section class="kpis" aria-label="Illustrative figures">' +
+      '<div class="kpi"><div class="label">Average review time</div><div class="v">38 min <small>→</small> 4 min</div></div>' +
+      '<div class="kpi"><div class="label">Cases auto-cleared</div><div class="v">62%</div></div>' +
+      '<div class="kpi"><div class="label">Audit coverage</div><div class="v">Every decision logged</div></div>' +
+      '</section><div class="kpi-note">Illustrative figures</div>';
+  }
+  // Timer-driven refresh: only touch the parts that change, so rows stay clickable while the crew works.
+  function updateQueue() {
+    CASES.forEach(function (c) {
+      var el = app.querySelector('[data-status="' + c.id + '"]'), rk = app.querySelector('[data-risk="' + c.id + '"]');
+      if (el) el.innerHTML = statusCell(c);
+      if (rk) rk.innerHTML = riskCell(c);
+    });
+    var crew = app.querySelector("[data-crew]"), act = app.querySelector("[data-act]"), sc = app.querySelector("[data-score]");
+    if (sc) sc.innerHTML = scoreboard();
+    if (crew) crew.innerHTML = crewCells();
+    if (act && !act.contains(document.activeElement)) act.innerHTML = missionAct();
+  }
+
+  // ---------- Case view ----------
+  function runLabel(cs) { return cs.running ? "Agent running…" : cs.done ? "Run again" : "► Run KYC agent"; }
+
+  function renderCase(c) {
+    var cs = state.cases[c.id], d = D(c);
+    app.innerHTML =
+      '<div class="case-head"><div class="case-title"><button class="back" type="button" data-back aria-label="Back to queue">←</button>' +
+      "<div><h1>" + esc(c.name) + ' <span class="chip neutral mono" style="vertical-align:middle">' + c.id + "</span></h1>" +
+      "<p>New client onboarding · Submitted " + c.submitted.toLowerCase() + " · Client language " + c.lang + "</p></div></div>" +
+      '<button class="btn agent" type="button" data-run ' + (cs.running ? "disabled" : "") + ">" + runLabel(cs) + "</button></div>" +
+      '<section class="panel crewband" id="crew" aria-label="Agent crew">' + renderCrew(c, cs, d) + "</section>" +
+      '<div class="layout"><div class="stack stick">' + renderApp(c, cs, d) + renderDocs(c, cs, d) + "</div>" +
+      '<aside class="panel" id="results" aria-label="Results" data-sig="' + resSig(cs) + '">' + renderSide(c, cs, d) + "</aside></div>";
+    paintHighlights(c, cs);
+    animateBars(cs);
+  }
+
+  function renderApp(c, cs, d) {
+    var a = d.app;
+    return '<section class="panel"><div class="panel-head"><h2>Application form</h2><span class="sub">Submitted online by applicant</span></div><div class="appform">' +
+      '<div class="f">' + fld("a-name", "Full name", a.name, "", d) + "</div>" +
+      '<div class="f">' + fld("a-dob", "Date of birth", a.dob, "", d) + "</div>" +
+      '<div class="f">' + fld("a-addr", "Residential address", a.addr, "", d) + "</div>" +
+      '<div class="f">' + fld("a-occ", "Occupation", a.occ, "", d) + "</div>" +
+      '<div class="f">' + fld("a-assets", "Declared wealth", a.assets, "", d) + "</div>" +
+      '<div class="f">' + fld("a-pep", "Public-office declaration", a.pep, "", d) + "</div>" +
+      "</div></section>";
+  }
+
+  function renderDocs(c, cs, d) {
+    var lines = mrzLines(c.pp), forn = cs.st.forn === "done", ppEdits = 0, billEdits = 0;
+    Object.keys(d.issues).forEach(function (f) { if (d.issues[f][0] === "tamper") { if (f.charAt(0) === "p") ppEdits++; else if (f.charAt(0) === "b") billEdits++; } });
+    var b = d.bill, newTag = d.newDoc === "bill" ? ' <span class="chip nodot ok" title="Received from the client at ' + esc(cs.replyAt) + '">New</span>' : "";
+    return '<div class="doc-bar"><span class="label">Documents</span><button class="tgl" type="button" data-forensic aria-pressed="' + cs.forensic + '" ' + (forn ? "" : "disabled") +
+      ' title="' + (forn ? "Dim the documents and light up edited regions" : "Available once the forensic check has run") + '">Forensic view</button></div>' +
+      '<div class="docs">' +
+      '<section class="panel"><div class="panel-head"><h2>Passport data page</h2><span class="sub">Republic of Alvoria · fictional</span></div>' +
+      '<div class="doc passport' + (cs.forensic ? " forensic" : "") + '" id="doc-pp"><div class="watermark">SPECIMEN · FICTIONAL</div><div class="scanline"></div><div class="xray"></div>' +
+      '<div class="xray-cap">' + (ppEdits ? "Error-level analysis · " + plural(ppEdits, "edited region", "edited regions") : "Error-level analysis · no edited regions") + "</div>" +
+      '<div class="doc-top"><div><div class="doc-country">Republic of Alvoria</div><div class="doc-type">PASSPORT</div></div><div class="seal">ALV</div></div>' +
+      '<div class="pp-body"><div class="photo">' + SILHOUETTE + '</div><div class="fields">' +
+      fld("p-name", "Surname, given names", c.pp.name, "span2") +
+      fld("p-nat", "Nationality", "Alvorian") + fld("p-dob", "Date of birth", c.pp.dob) +
+      fld("p-num", "Passport no.", c.pp.num) + fld("p-iss", "Date of issue", c.pp.iss) +
+      fld("p-exp", "Date of expiry", c.pp.exp, "span2") +
+      "</div></div>" +
+      '<div class="mrz" data-f="p-mrz">' + esc(lines[0]) + "<br>" + esc(lines[1]) + "</div>" +
+      "</div></section>" +
+      '<section class="panel"><div class="panel-head"><h2>Electricity bill' + newTag + '</h2><span class="sub">Lakeside Energy Co. · fictional</span></div>' +
+      '<div class="doc bill' + (cs.forensic ? " forensic" : "") + '" id="doc-bill"><div class="watermark">SPECIMEN · FICTIONAL</div><div class="scanline"></div><div class="xray"></div>' +
+      '<div class="xray-cap">' + (billEdits ? "Error-level analysis · " + plural(billEdits, "edited region", "edited regions") : "Error-level analysis · no edited regions") + "</div>" +
+      '<div class="doc-top"><div><div class="bill-logo"><span>LE</span>Lakeside Energy Co.</div><div class="doc-country" style="margin-top:4px;opacity:.7">Fictional provider</div></div>' +
+      '<div class="amount"><div class="fld" data-f="b-amt"><div class="k">Amount due</div><div class="val big">' + esc(b.amt) + "</div></div></div></div>" +
+      '<div class="bill-body">' +
+      fld("b-name", "Customer", b.name, "", d) + fld("b-date", "Bill date", b.date, "", d) +
+      fld("b-addr", "Service address", b.addr, "", d) + fld("b-acct", "Account no.", b.acct, "", d) +
+      "</div>" +
+      '<div class="usage"><div style="display:flex;justify-content:space-between"><span>Electricity · billing period</span><span class="mono">412 kWh</span></div><div class="bar"><i></i></div></div>' +
+      '<p class="fine">Synthetic sales-demo specimen. Not a real invoice; no monetary value.</p>' +
+      "</div></section></div>";
+  }
+
+  function isNarrow() { return !!window.matchMedia && window.matchMedia("(max-width: 760px)").matches; }
+
+  // What the crew will do, drawn before anything has run.
+  var PLAN = (function () {
+    var steps = {}, total = 0;
+    STEPS.forEach(function (s) { steps[s.id] = [s.at, s.at + s.dur]; if (s.at + s.dur > total) total = s.at + s.dur; });
+    return { total: total, steps: steps };
+  })();
+
+  // A trace-style view of the run: one lane per agent, one bar per check, drawn on a shared clock.
+  function renderTimeline(c, cs, d) {
+    var sc = cs.sched || PLAN, total = sc.total, now = Date.now(), rows = "", ticks = "", row = 0, i;
+    LANES.forEach(function (ln) {
+      var steps = STEPS.filter(function (s) { return s.lane === ln.id; }), n = 0, bars = "";
+      row += 1;
+      steps.forEach(function (s) {
+        var t = sc.steps[s.id], st = cs.st[s.id], cls = "gbar", style, mark = "", tip = s.label + " · " + s.tool, nt;
+        if (st === "done") n += 1;
+        if (!t) return;
+        style = "left:" + (t[0] / total * 100).toFixed(2) + "%;width:" + ((t[1] - t[0]) / total * 100).toFixed(2) + "%";
+        if (st === "done") { nt = stepNote(c, d, s); cls += " done" + (nt[1] ? " " + nt[1] : ""); mark = "✓ "; tip += " · " + nt[0]; }
+        else if (st === "run") { cls += " run"; style += ";--d:" + Math.round(t[1] - t[0]) + "ms;--delay:" + Math.round(cs.t0 + t[0] - now) + "ms"; }
+        bars += '<span class="' + cls + '" style="' + style + '" title="' + esc(tip) + '">' + mark + esc(s.short) + "</span>";
+      });
+      rows += '<div class="g-label" style="grid-row:' + row + '"><span class="glyph" aria-hidden="true">' + ln.g + "</span><b>" + esc(ln.name) + '</b><span class="lane-n">' + n + "/" + steps.length + "</span></div>" +
+        '<div class="g-track" style="grid-row:' + row + ';grid-column:2">' + (bars || '<span class="g-none">No change needed</span>') + "</div>";
+    });
+    for (i = 0; i <= Math.floor(total / 1000); i++) ticks += '<span style="left:' + (i * 1000 / total * 100).toFixed(2) + '%">' + i + " s</span>";
+    return '<div class="gantt">' + rows +
+      (cs.running ? '<div class="g-layer"><span class="g-now" style="--total:' + Math.round(total) + "ms;--delay0:" + Math.round(cs.t0 - now) + 'ms"></span></div>' : "") +
+      '<div class="g-axis">' + ticks + "</div></div>";
+  }
+
+  // The detailed view: every check as a card with its tool call, result and confidence.
+  function renderLanes(c, cs, d) {
+    return '<div class="lanes">' + LANES.map(function (ln) {
+      var steps = STEPS.filter(function (s) { return s.lane === ln.id; }), n = steps.filter(function (s) { return cs.st[s.id] === "done"; }).length;
+      return '<div class="lane"><div class="lane-head"><span class="glyph" aria-hidden="true">' + ln.g + "</span><div><b>" + esc(ln.name) + "</b><small>" + esc(ln.role) + '</small></div><span class="lane-n">' + n + "/" + steps.length + "</span></div>" +
+        steps.map(function (s, i) {
+          var isDone = cs.st[s.id] === "done", isCur = cs.st[s.id] === "run", nt = isDone ? stepNote(c, d, s) : null;
+          return '<div class="step ' + (isDone ? "done " : "") + (isCur ? "current" : "") + '"><span class="dot">' + (isDone ? "✓" : i + 1) + "</span>" +
+            '<div><div class="st-h"><span class="st-l">' + esc(s.label) + "</span>" + (isDone ? '<span class="conf">' + s.conf + "%</span>" : "") + "</div>" +
+            '<code class="tool">' + esc(s.tool) + "</code>" + (nt ? '<span class="note ' + nt[1] + '">' + esc(nt[0]) + "</span>" : "") + "</div></div>";
+        }).join("") + "</div>";
+    }).join("") + "</div>";
+  }
+
+  // The crew band: orchestrator row on top, the timeline while the crew works, one summary line once it is done.
+  function renderCrew(c, cs, d) {
+    var total = STEPS.length, settled = cs.done && !cs.running, status = cs.running ? "run" : cs.done ? "fin" : "";
+    var head = '<div class="panel-head"><div><h2>Agent crew</h2><span class="sub">' + total + " checks · 4 agents · run in parallel</span></div>" +
+      '<div class="head-r"><span class="status-dot ' + status + '">' + (cs.running ? "Processing" : cs.done ? "Complete" : "Ready") + "</span>" +
+      (settled ? '<button class="link" type="button" data-crew-toggle>' + (cs.crew === "min" ? "Show agent activity" : "Hide agent activity") + "</button>" : "") + "</div></div>";
+    if (settled && cs.crew === "min") {
+      return head + '<div class="crew-min"><span class="ok-mark" aria-hidden="true">✓</span><span>' + total + " checks across 4 agents finished in <b>" + secs(cs.elapsed) + "</b>. " +
+        plural(d.flags.length, "flag", "flags") + " raised, " + screenStats(d).dismissed + " look-alike screening hits dismissed with reasons.</span></div>";
+    }
+    var plan = cs.running ? (cs.rerun ? "Re-verifying after the client's reply" : "Plan: " + total + " checks across 4 agents, run in parallel") : cs.done ? "Recommendation assembled · policy " + POLICY_VERSION : "Plan: " + total + " checks across 4 agents, run in parallel · policy " + POLICY_VERSION;
+    var orch = '<div class="orch"><span class="glyph" aria-hidden="true">O</span><b>Orchestrator</b><span class="plan">' + esc(plan) + '</span><span class="clock" data-clock>' + secs(cs.running ? Date.now() - cs.t0 : cs.elapsed) + "</span></div>";
+    return head + orch + (!settled && !isNarrow() ? renderTimeline(c, cs, d) : renderLanes(c, cs, d));
+  }
+
+  // Live log shown on the right while the crew works: the same calls the audit trail will keep.
+  function renderLive(c, cs, d) {
+    var lines = cs.feed.map(function (id) {
+      var s = stepById(id), isDone = cs.st[id] === "done", nt = isDone ? stepNote(c, d, s) : null;
+      return '<div class="ln"><span class="t">+' + (cs.started[id] / 1000).toFixed(1) + '</span><div><span class="call">' + esc(s.lane + " ▸ " + s.tool) + "</span>" +
+        (isDone ? '<span class="res ' + (nt[1] === "bad" ? "bad" : nt[1] === "warn" ? "warn" : "ok") + '">✓ ' + esc(nt[0]) + " · " + s.conf + "%</span>" : '<span class="res caret">running</span>') + "</div></div>";
+    }).join("");
+    var quote = cs.rerun ? '<div class="quote">Client reply received ' + esc(cs.replyAt) + "\n" + esc(c.next.reply) + "\n" + esc(c.next.read) + "</div>" : "";
+    return '<div class="live" aria-label="Live agent log">' +
+      '<div class="hd">' + (cs.rerun ? "Re-verifying " + c.next.rerun.length + " checks after the client reply" : "Live agent log · " + c.id) + "</div>" + quote + (lines || '<div class="ln"><span class="t">+0.0</span><span class="res caret">orchestrator planning the run</span></div>') + "</div>";
+  }
+
+  function resSig(cs) {
+    return [cs.running, cs.rerun, cs.done, cs.tab, cs.feed.length, doneCount(cs), cs.decision, cs.out, cs.json ? 1 : 0, cs.err, cs.crew].join("|");
+  }
+
+  function renderSide(c, cs, d) {
+    var tabs = '<div class="panel-head"><div class="tabs" role="tablist">' +
+      '<button class="tab" role="tab" type="button" data-tab="results" aria-selected="' + (cs.tab === "results") + '">Results</button>' +
+      '<button class="tab" role="tab" type="button" data-tab="audit" aria-selected="' + (cs.tab === "audit") + '">Audit trail</button></div>' +
+      (cs.done && !cs.running ? '<span class="chip ' + RECO_TONE[d.reco] + '">' + d.reco + "</span>" : "") + "</div>";
+    return tabs + (cs.tab === "results" ? renderResults(c, cs, d) : renderAudit(c, cs, d));
+  }
+
+  function isOpen(cs, key, dflt) { return cs.open[key] === undefined ? dflt : cs.open[key]; }
+  function evAttr(ids) { return ids && ids.length ? ' data-ev="' + ids.join(",") + '"' : ""; }
+  function polChip(p) { return '<span class="pol" title="' + esc(POL[p]) + '">Policy <b>' + p + "</b> · " + esc(POL[p]) + "</span>"; }
+
+  function renderResults(c, cs, d) {
+    if (cs.running) return renderLive(c, cs, d);
+    if (!cs.done) {
+      return '<div class="empty"><div><h3>Ready when you are</h3><p>Run the KYC agent to read the documents, check them for tampering, screen the applicant and rate the risk.</p></div></div>';
+    }
+    var r = riskOf(d), tone = RECO_TONE[d.reco], glyph = { CLEAR: "✓", REVIEW: "!", ESCALATE: "↑" }[d.reco], lvl = LVL_TONE[r.level];
+    var route = r.level === "HIGH" ? "<b>Compliance and senior management</b> decide (policy §5.3)" : stpEligible(d) ? "<b>Officer decides</b>, or straight-through if switched on (policy §6.1)" : "<b>Officer decides</b>";
+    var updated = cs.replied ? ' <span class="chip agent nodot">Updated after client reply</span>' : "";
+    var reco = '<div class="section"><div class="reco"><div class="reco-badge ' + tone + '">' + glyph + '</div><div><div class="label">Agent recommendation</div><div class="big">' + d.reco + updated + "</div><p>" + esc(d.summary) + "</p></div></div>" +
+      '<div class="riskline"><span class="label">Customer risk</span><span style="display:flex;align-items:center;gap:10px"><span class="chip nodot ' + lvl + '">' + r.level + " " + r.score + '</span><span class="mini-meter ' + lvl + '" style="flex:1"><i' + wAttr(cs, Math.min(100, r.score)) + '></i></span></span>' +
+      '<span class="route">Approval route: ' + route + "</span></div></div>";
+    var flags = renderFlags(d, cs);
+    return reco + flags + renderNext(c, cs, d) + renderDecision(c, cs, d, r) + renderEvidence(c, cs, d, r);
+  }
+
+  function renderFlags(d, cs) {
+    var items = d.flags.map(function (f) {
+      var shown = cs.pin.join(",") === f.ev.join(",") && f.ev.length;
+      return '<div class="flag ' + f.s + '"' + evAttr(f.ev) + '><div class="flag-t">' + esc(f.t) + ' <span class="chip ' + SEV_TONE[f.s] + '">' + f.s + "</span></div><p>" + esc(f.r) + "</p>" +
+        '<div class="flag-f">' + polChip(f.p) + (f.ev.length ? '<button class="link" type="button" data-show="' + f.ev.join(",") + '">' + (shown ? "Hide in documents" : "Show in documents") + " ↗</button>" : "") + "</div></div>";
+    }).join("");
+    var resolved = (d.resolved || []).map(function (f) {
+      return '<div class="flag resolved"><div class="flag-t">' + esc(f.t) + ' <span class="chip ok">resolved</span></div><p>' + esc(f.r) + "</p></div>";
+    }).join("");
+    var body = items || resolved ? '<div class="flags">' + items + resolved + "</div>" : '<div class="noflags">✓ No discrepancies found</div>';
+    if (!items && resolved) body = '<div class="noflags">✓ No open flags</div><div class="flags" style="margin-top:10px">' + resolved + "</div>";
+    return '<div class="section"><div class="label">Flags · ' + d.flags.length + " open</div>" + body + "</div>";
+  }
+
+  // The next step the agent has prepared: a client message, a held-back pack, an EDD pack or a ready-to-write client record.
+  function renderNext(c, cs, d) {
+    var n = c.next, cards = [], cur = nextOf(c, d);
+    if (n.type === "outreach") {
+      var head = '<div class="next-h"><b>Client request drafted in ' + n.lang + "</b>" + (cs.out === "draft" ? '<span class="chip agent">Draft · policy §7.2</span>' : cs.out === "sent" ? '<span class="chip warn">Sent · awaiting reply</span>' : '<span class="chip ok">Reply received</span>') + "</div>";
+      var gloss = n.gloss ? '<details class="mini"><summary>English translation</summary><div>' + esc(n.gloss) + "</div></details>" : "";
+      var body;
+      if (cs.out === "draft") {
+        body = '<div class="next-b"><p>The agent wrote this in the client’s language. Edit it if you like, then send it through the client portal.</p><div class="msg-subj">' + esc(n.subject) + "</div>" +
+          '<textarea class="msg" data-msg aria-label="Message to client">' + esc(cs.msg) + "</textarea>" + gloss +
+          '<div class="next-a"><button class="btn primary" type="button" data-send>Send to client</button><span class="cell-muted">Nothing leaves without you.</span></div></div>';
+      } else {
+        body = '<div class="next-b"><div class="msg-subj">' + esc(n.subject) + '</div><div class="msg-body">' + esc(cs.msg) + "</div>" + gloss +
+          (cs.out === "sent" ? '<div class="next-a"><span class="cell-muted">Sent ' + cs.sentAt + ' via client portal.</span><button class="btn" type="button" data-reply>► Simulate client reply</button></div><p class="fine2">Demo control: stands in for the client answering.</p>' :
+            '<div class="bubble"><div class="who2">Client reply · ' + cs.replyAt + "</div>" + esc(n.reply).replace(/\n/g, "<br>") + '<div class="read">' + esc(n.read) + "</div></div>") + "</div>";
+      }
+      cards.push('<div class="next">' + head + body + "</div>");
+    }
+    if (cur.type === "ready") {
+      var rr = riskOf(d), cyc = REVIEW_CYCLE[rr.level], done = cs.decision === "Approved";
+      var rows = [["Client name", d.app.name], ["Date of birth", d.app.dob], ["Address", d.app.addr], ["Nationality", "Alvorian"],
+        ["ID document", "Passport " + c.pp.num + ", valid to " + c.pp.exp], ["Risk rating", rr.level + " (" + rr.score + ")"], ["Next review", cyc[0] + " · every " + cyc[1]]];
+      cards.push('<div class="next"><div class="next-h"><b>' + (done ? "Written to core banking (simulated)" : "Ready to onboard") + "</b>" +
+        (done ? '<span class="chip ok">Done</span>' : '<span class="chip agent">Prepared</span>') + '</div><div class="next-b"><p>' + (done ? "The verified data went into the client record. Nobody re-keyed it." : "Verified data is mapped to the client record. On approval the agent writes it to core banking, so nobody re-keys it.") + '</p><div class="kv">' +
+        rows.map(function (x) { return "<div>" + esc(x[0]) + "</div><div>" + esc(x[1]) + "</div>"; }).join("") + "</div></div></div>");
+    }
+    if (cur.type === "hold") {
+      var dr = cur.draft ? '<details class="mini"><summary>Draft for Compliance to approve (' + cur.draft.lang + ")</summary><div><b>" + esc(cur.draft.subject) + "</b>\n\n" + esc(cur.draft.body) + "\n\nEnglish translation\n" + esc(cur.draft.gloss) + "</div></details>" : "";
+      cards.push('<div class="next"><div class="next-h"><b>' + esc(cur.title) + '</b><span class="chip bad">Held · policy §4.3</span></div><div class="next-b"><p>' + esc(cur.text) + "</p>" +
+        '<div class="label sublabel">Escalation pack prepared</div><ul class="checks">' + cur.pack.map(function (x) { return '<li><span>' + esc(x) + '</span><span class="chip ok nodot">Ready</span></li>'; }).join("") + "</ul>" + dr + "</div></div>");
+    }
+    if (cur.type === "edd") {
+      var tone = { done: "ok", draft: "warn", pending: "neutral" }, lab = { done: "Prepared", draft: "Draft", pending: "Needs a person" };
+      cards.push('<div class="next"><div class="next-h"><b>' + esc(cur.title) + '</b><span class="chip bad">EDD · policy §5.3</span></div><div class="next-b"><p>' + esc(cur.text) + '</p><ul class="checks">' +
+        cur.items.map(function (x) { return "<li><span>" + esc(x[0]) + '</span><span class="chip nodot ' + tone[x[1]] + '">' + lab[x[1]] + "</span></li>"; }).join("") + "</ul></div></div>");
+    }
+    return cards.length ? '<div class="section"><div class="label">Next step</div><div class="next-stack">' + cards.join("") + "</div></div>" : "";
+  }
+
+  function renderDecision(c, cs, d, r) {
+    var stpNote = state.stp ? "Clean, low-risk cases that your policy releases are approved straight-through, with QA sampling afterwards." : "A compliance officer records the final decision and the reason for it.";
+    var body;
+    if (cs.decision) {
+      var esc2 = cs.decision !== "Approved", who = cs.by === "agent" ? "Approved straight-through by the agent under policy §6.1. Post-decision QA sampling applies." : "Recorded by the compliance officer" + (cs.override ? ", overriding the agent's " + d.reco + " recommendation." : ".");
+      body = '<div class="decided ' + (esc2 ? "esc" : "") + '"><b>✓ Decision recorded: ' + esc(cs.decision) + "</b><q>" + esc(cs.comment) + '</q><span class="meta">' + esc(who) + "</span></div>" +
+        (esc2 ? '<div class="after"><div class="next-h"><b>Escalation pack sent to Compliance (simulated)</b><span class="chip ok">Sent</span></div><div class="next-b"><p>Compliance receives the summary, evidence and audit trail in one pack, so they start from the findings and not from scratch.</p></div></div>' : "") +
+        '<div class="next-a"><button class="link" type="button" data-audit>View in audit trail →</button>' + (cs.by === "agent" ? '<button class="link" type="button" data-reopen>Reopen case</button>' : "") + "</div>";
+    } else {
+      var locked = r.level === "HIGH";
+      body = '<label class="label" for="comment-' + c.id + '">Officer comment <span style="color:var(--bad)">· required</span></label>' +
+        '<textarea id="comment-' + c.id + '" data-comment class="' + (cs.err ? "err" : "") + '" placeholder="Rationale for the final decision">' + esc(cs.comment) + "</textarea>" +
+        (cs.err ? '<div class="err-msg">Add a comment before recording a decision.</div>' : "") +
+        '<div class="drafted">Drafted by the agent. Edit it before you sign.</div>' +
+        '<div class="decide"><button class="btn ' + (d.reco === "CLEAR" ? "primary" : "") + '" type="button" data-decide="Approved" ' + (locked ? "disabled" : "") + ">✓ Approve</button>" +
+        (locked ? '<p class="lock">Approve is locked: a High-risk client needs Compliance and senior management (policy §5.3).</p>' : "") +
+        '<button class="btn ' + (d.reco === "ESCALATE" ? "danger" : "") + '" type="button" data-decide="Escalated to Compliance">Escalate to Compliance</button></div>';
+    }
+    return '<div class="section"><div class="hitl"><b>' + (state.stp ? "Agent recommends. Officer decides, with one exception." : "Agent recommends, human decides") + "</b><span>" + esc(stpNote) + "</span></div>" + body + "</div>";
+  }
+
+  function renderEvidence(c, cs, d, r) {
+    var sig = signalRows(c, d), st = screenStats(d), parts = "", cmpBad = d.cmp.filter(function (x) { return x[4] !== "ok"; }).length;
+    var sigFails = sig.pp.concat(sig.bill).filter(function (x) { return x[1] === "fail"; }).length, hasScreen = st.dismissed + st.matches + st.relevant > 0;
+    function sec(key, title, summary, dflt, inner) {
+      return '<details class="ev" data-sec="' + key + '" ' + (isOpen(cs, key, dflt) ? "open" : "") + "><summary><span class=\"ev-t\">" + title + '</span><span class="ev-s">' + summary + '</span></summary><div class="ev-b">' + inner + "</div></details>";
+    }
+    // Field comparison
+    var cmp = d.cmp.map(function (x, i) {
+      var mark = { ok: "✓", warn: "▲", bad: "✗" }[x[4]];
+      return "<tr" + evAttr(CMP_EV[i]) + "><td>" + x[0] + "</td><td>" + esc(x[1]) + "</td><td>" + esc(x[2]) + "</td><td>" + esc(x[3]) + '</td><td><span class="res ' + x[4] + '">' + mark + " " + esc(x[5]) + "</span></td></tr>";
+    }).join("");
+    parts += sec("cmp", "Field comparison", cmpBad ? '<span class="chip nodot ' + (d.cmp.some(function (x) { return x[4] === "bad"; }) ? "bad" : "warn") + '">' + plural(cmpBad, "difference", "differences") + "</span>" : '<span class="chip nodot ok">All match</span>', cmpBad > 0,
+      '<div class="cmp-wrap"><table class="cmp"><thead><tr><th>Field</th><th>Passport</th><th>Bill</th><th>Application</th><th>Result</th></tr></thead><tbody>' + cmp + "</tbody></table></div>");
+    // Screening
+    var names = { sanc: "Sanctions", pep: "PEP and relatives", media: "Adverse media" };
+    var scr = ["sanc", "pep", "media"].map(function (k) {
+      var s = d.screen[k], nt = stepNote(c, d, stepById(k)), cls = nt[1] === "bad" ? "bad" : nt[1] === "warn" ? "warn" : "ok";
+      var hits = s.hits.map(function (h) {
+        var vt = h.v === "dismissed" ? "neutral" : h.v === "match" ? "bad" : "warn", vl = h.v === "dismissed" ? "Dismissed" : h.v === "match" ? "Match" : "Relevant, indirect";
+        return '<div class="cand"' + (k === "pep" && h.v === "match" ? evAttr(["a-pep"]) : "") + '><div class="cand-t"><b>' + esc(h.who) + '</b><span class="chip nodot ' + vt + '">' + vl + "</span>" + (h.sim ? '<span class="sim">name ' + h.sim + "%</span>" : "") + '</div><div class="cell-muted" style="font-size:12px">' + esc(h.id) + "</div><p>" + esc(h.why) + "</p></div>";
+      }).join("");
+      return '<div><div class="scr-h"><b>' + names[k] + '</b><span class="chip nodot ' + cls + '">' + esc(nt[0]) + "</span></div>" + hits + "</div>";
+    }).join("");
+    parts += sec("scr", "Screening", st.matches ? '<span class="chip nodot bad">' + plural(st.matches, "match", "matches") + "</span>" : st.dismissed ? '<span class="chip nodot neutral">' + st.dismissed + " dismissed with reasons</span>" : '<span class="chip nodot ok">Clear</span>', hasScreen,
+      '<div class="scr">' + scr + '</div><p class="fine2">The demo screens against a synthetic watchlist. In production the agent calls your screening provider.</p>');
+    // Authenticity
+    function sigTable(title, rows) {
+      return '<tr><th colspan="3">' + title + "</th></tr>" + rows.map(function (x) {
+        return "<tr><td>" + esc(x[0]) + '</td><td><span class="res ' + (x[1] === "pass" ? "ok" : "bad") + '">' + (x[1] === "pass" ? "✓ Pass" : "✗ Failed") + "</span></td><td>" + esc(x[2]) + "</td></tr>";
+      }).join("");
+    }
+    parts += sec("auth", "Document authenticity", sigFails ? '<span class="chip nodot bad">' + sigFails + " of 10 failed</span>" : '<span class="chip nodot ok">10 of 10 passed</span>', sigFails > 0,
+      '<div class="cmp-wrap"><table class="sigs"><tbody>' + sigTable("Passport", sig.pp) + sigTable("Proof of address", sig.bill) + "</tbody></table></div>" +
+      (sigFails ? '<p class="fine2">Switch on Forensic view above the documents to see where the edits sit.</p>' : ""));
+    // Risk
+    var fac = d.risk.map(function (f, i) {
+      return '<div class="fac" title="' + esc(FACTORS[i] + ": " + f[0] + " points. " + f[1]) + '"><span class="name">' + esc(FACTORS[i]) + '</span><span class="bar"><i' + wAttr(cs, Math.min(100, Math.round(f[0] / 60 * 100))) + '></i></span><span class="pts">' + f[0] + '</span><span class="why">' + esc(f[1]) + "</span></div>";
+    }).join("");
+    var lvl = LVL_TONE[r.level];
+    parts += sec("risk", "Risk rating", '<span class="chip nodot ' + lvl + '">' + r.level + " " + r.score + "</span>", r.level !== "LOW",
+      '<div class="meter-wrap"><div class="meter ' + lvl + '"><span class="tick" style="left:30%"></span><span class="tick" style="left:60%"></span><i class="fill"' + wAttr(cs, Math.min(100, r.score)) + '></i><span class="score" style="left:' + Math.min(96, Math.max(4, r.score)) + '%">' + r.score + "</span></div>" +
+      '<div class="meter-scale"><span style="left:0">Low · under 30</span><span style="left:30%">Medium · 30 to 59</span><span style="left:60%">High · 60 and over</span></div></div>' +
+      '<div style="margin-top:8px">' + fac + '</div><p class="fine2">Six factors add up to the score. Bars use one scale from 0 to 60 points.</p>');
+    // Source of wealth
+    if (c.sow) {
+      var sw = sowStats(c), tot = sw.tot, ev = sw.ev, cov = sw.cov, ok = cov >= c.sow.threshold;
+      parts += sec("sow", "Source of wealth", '<span class="chip nodot ' + (ok ? "ok" : "warn") + '">' + cov + "% evidenced</span>", true,
+        '<div class="cmp-wrap"><table class="sow"><thead><tr><th>Source</th><th class="n">Declared (CHF)</th><th class="n">Evidenced (CHF)</th><th>Evidence</th></tr></thead><tbody>' +
+        c.sow.rows.map(function (x) { return "<tr><td>" + esc(x[0]) + '</td><td class="n">' + x[1].toFixed(2) + 'm</td><td class="n">' + x[2].toFixed(2) + "m</td><td>" + esc(x[3]) + "</td></tr>"; }).join("") + "</tbody></table></div>" +
+        '<div class="cov"><div class="cov-h"><b>' + cov + "% of CHF " + tot.toFixed(1) + 'm evidenced</b><span class="cell-muted">Threshold ' + c.sow.threshold + "% (policy §5.5)</span></div>" +
+        '<div class="meter"><span class="tick" style="left:' + c.sow.threshold + '%"></span><i class="fill"' + wAttr(cs, cov) + '></i></div></div>' +
+        '<p class="fine2">CHF ' + (tot - ev).toFixed(2) + "m of declared savings has no evidence yet. The agent matched each source to a document and added the amounts up.</p>");
+    }
+    return '<div class="evs">' + parts + "</div>";
+  }
+
+  function auditPayload(c, cs) {
+    var d = D(c), r = riskOf(d), sig = signalRows(c, d), done = cs.done, sw = c.sow ? sowStats(c) : null;
+    return {
+      environment: "fictional_demo", syntheticDataOnly: true, bank: "Seeblick Privatbank (fictional)", policyVersion: POLICY_VERSION + " (fictional)",
+      caseId: c.id, applicant: c.name, clientLanguage: c.lang,
+      agentRecommendation: done ? d.reco : null,
+      riskRating: done ? { level: r.level, score: r.score, factors: d.risk.map(function (f, i) { return { factor: FACTORS[i], points: f[0], reason: f[1] }; }) } : null,
+      checks: STEPS.filter(function (s) { return cs.st[s.id] === "done"; }).map(function (s) {
+        var nt = stepNote(c, d, s);
+        return { id: s.id, agent: laneOf(s).name, tool: s.tool, confidence: s.conf / 100, result: nt[0] };
+      }),
+      screening: done ? { sanctions: d.screen.sanc, pep: d.screen.pep, adverseMedia: d.screen.media } : null,
+      documentAuthenticity: done ? { passport: sig.pp.map(function (x) { return { signal: x[0], result: x[1], detail: x[2] }; }), proofOfAddress: sig.bill.map(function (x) { return { signal: x[0], result: x[1], detail: x[2] }; }) } : null,
+      sourceOfWealth: sw && done ? { declaredChfMillion: sw.tot, evidencedChfMillion: sw.ev, coveragePercent: sw.cov, thresholdPercent: c.sow.threshold,
+        sources: c.sow.rows.map(function (x) { return { source: x[0], declared: x[1], evidenced: x[2], evidence: x[3] }; }) } : null,
+      flags: done ? d.flags.map(function (f) { return { title: f.t, severity: f.s, policy: f.p, reasoning: f.r, evidenceFields: f.ev }; }) : [],
+      resolvedFlags: done ? (d.resolved || []).map(function (f) { return { title: f.t, resolution: f.r }; }) : [],
+      clientMessage: cs.out ? { language: c.next.lang, status: cs.out === "draft" ? "drafted" : cs.out === "sent" ? "sent" : "replied", sentAt: cs.sentAt || null } : null,
+      events: cs.log,
+      humanDecision: cs.decision ? { decision: cs.decision, decidedBy: cs.by, comment: cs.comment, overrodeAgent: cs.override } : null
+    };
+  }
+
+  function renderAudit(c, cs) {
+    var items = cs.log.length ? cs.log.map(function (e) {
+      return "<li><time>" + e.time + '</time><div><span class="kind ' + e.kind + '">' + { agent: "Agent", flag: "Flag", human: "Officer", sys: "System" }[e.kind] + "</span>" + esc(e.text) + "</div></li>";
+    }).join("") : '<li><time>—</time><div style="color:var(--muted)">No activity yet. Run the agent to start the record.</div></li>';
+    return '<div class="audit"><div class="audit-top"><div><h3>Activity record</h3><p>Every agent step, flag and human decision, timestamped.</p></div>' +
+      '<button class="btn" type="button" data-json>Show audit log (JSON)</button></div>' +
+      '<ol class="events">' + items + "</ol>" +
+      (cs.json ? '<div class="json-out"><button class="btn" type="button" data-copy>Copy JSON</button><span class="copied" data-copied hidden>Copied</span><textarea id="json-' + c.id + '" readonly>' + esc(cs.json) + "</textarea></div>" : "") +
+      "</div>";
+  }
+
+  // Marks the fields the agent is reading, the issues it has found, and whatever evidence the officer is pointing at.
+  function paintHighlights(c, cs) {
+    var d = D(c), lit = {}, scan = { pp: false, bill: false }, focus = {};
+    STEPS.forEach(function (s) {
+      if (cs.st[s.id] === "run") {
+        s.lit.forEach(function (f) { lit[f] = s.conf; });
+        if (s.scan === "pp" || s.scan === "both") scan.pp = true;
+        if (s.scan === "bill" || s.scan === "both") scan.bill = true;
+      }
+    });
+    (cs.hover.length ? cs.hover : cs.pin).forEach(function (f) { focus[f] = true; });
+    app.querySelectorAll("[data-f]").forEach(function (el) {
+      var f = el.getAttribute("data-f"), iss = d.issues[f], show = iss && cs.st[iss[1]] === "done" && !(cs.running && cs.rerun);
+      el.classList.remove("lit", "issue", "partial", "tamper", "focus");
+      el.removeAttribute("data-conf");
+      if (lit[f]) { el.classList.add("lit"); el.setAttribute("data-conf", lit[f] + "%"); }
+      else if (show) { el.classList.add(iss[0] === "tamper" ? "issue" : iss[0]); if (iss[0] === "tamper") el.classList.add("tamper"); }
+      if (focus[f]) el.classList.add("focus");
+    });
+    var a = $("#doc-pp"), b = $("#doc-bill");
+    if (a) a.classList.toggle("scanning", scan.pp);
+    if (b) b.classList.toggle("scanning", scan.bill);
+  }
+  // Bars and meters grow to their value the first time results appear. After that they render at full width, so toggling a panel never replays the animation.
+  function wAttr(cs, pct) { return ' data-w="' + pct + '"' + (cs.seen ? ' style="width:' + pct + '%"' : ""); }
+  function animateBars(cs) {
+    var els = app.querySelectorAll("[data-w]:not([style])");
+    if (cs.done && !cs.running) cs.seen = true;
+    requestAnimationFrame(function () { requestAnimationFrame(function () { els.forEach(function (el) { el.style.width = el.getAttribute("data-w") + "%"; }); }); });
+  }
+
+  // Timer-driven refresh for the open case. The documents are left alone so the scan line keeps sweeping.
+  function updateCase(c) {
+    var cs = state.cases[c.id], d = D(c), btn = $("[data-run]"), crew = $("#crew"), res = $("#results");
+    if (btn) { btn.disabled = cs.running; btn.textContent = runLabel(cs); }
+    if (crew) crew.innerHTML = renderCrew(c, cs, d);
+    paintHighlights(c, cs);
+    if (res && res.getAttribute("data-sig") !== resSig(cs)) {
+      res.innerHTML = renderSide(c, cs, d);
+      res.setAttribute("data-sig", resSig(cs));
+      animateBars(cs);
+    }
+  }
+  function touch(c) {
+    if (state.view === "queue") updateQueue();
+    else if (state.view === c.id) updateCase(c);
+  }
+  function refreshAll(c) {
+    if (state.view === "queue") renderQueue();
+    else if (state.view === c.id) renderCase(c);
+  }
+
+  // ---------- Agent run ----------
+  function startTicker() { if (!ticker) ticker = setInterval(tick, 100); }
+  function tick() {
+    var any = CASES.some(function (c) { return state.cases[c.id].running; }), el = $("[data-clock]");
+    if (el) {
+      if (state.view === "queue") { if (state.batch && !state.batch.end) el.textContent = secs(Date.now() - state.batch.start); }
+      else { var cs = state.cases[state.view]; if (cs.running) el.textContent = secs(Date.now() - cs.t0); }
+    }
+    if (!any) { clearInterval(ticker); ticker = null; }
+  }
+
+  // `only` lists the steps to repeat after a client reply; without it the whole crew runs.
+  function runAgent(c, only, delay) {
+    var cs = state.cases[c.id], lag = delay || 0, k = only ? 0.8 : 1, list, base, left, sched = {}, tmax = 0;
+    cs.timers.forEach(clearTimeout);
+    if (!only) cs = state.cases[c.id] = freshCase();
+    cs.timers = [];
+    list = STEPS.filter(function (s) { return !only || only.indexOf(s.id) !== -1; });
+    base = only ? Math.min.apply(null, list.map(function (s) { return s.at; })) : 0;
+    left = list.length;
+    list.forEach(function (s) {
+      var a = (s.at - base) * k + (only ? 300 : 0), b = a + s.dur * k;
+      sched[s.id] = [a, b];
+      if (b > tmax) tmax = b;
+    });
+    cs.sched = { total: tmax, steps: sched };
+    cs.running = true; cs.done = false; cs.rerun = !!only; cs.crew = "open"; cs.feed = []; cs.started = {};
+    cs.t0 = Date.now() + lag; cs.elapsed = 0;
+    list.forEach(function (s) { cs.st[s.id] = "wait"; });
+    addLog(cs, "sys", only ? "Re-verification started on " + plural(list.length, "check", "checks") : "Case " + c.id + " opened; agent crew started under policy " + POLICY_VERSION);
+    if (lag) later(cs, function () { touch(c); }, lag);
+    list.forEach(function (s) {
+      later(cs, function () { cs.st[s.id] = "run"; cs.feed.push(s.id); cs.started[s.id] = Date.now() - cs.t0; touch(c); }, lag + sched[s.id][0]);
+      later(cs, function () {
+        var nt = stepNote(c, D(c), s);
+        cs.st[s.id] = "done";
+        addLog(cs, "agent", "[" + laneOf(s).name + "] " + s.label + " · " + nt[0] + " · " + s.tool + " · " + s.conf + "% confidence");
+        left -= 1;
+        if (left === 0) finish(c, !!only); else touch(c);
+      }, lag + sched[s.id][1]);
+    });
+    startTicker();
+  }
+
+  function setDraft(cs, d) {
+    var old = cs.draft;
+    cs.draft = d.rationale;
+    if (!cs.comment || cs.comment === old) cs.comment = cs.draft;
+  }
+
+  function finish(c, isRerun) {
+    var cs = state.cases[c.id], d = D(c), r = riskOf(d);
+    cs.running = false; cs.done = true; cs.rerun = false; cs.elapsed = Date.now() - cs.t0; cs.crew = "min";
+    if (isRerun) {
+      (d.resolved || []).forEach(function (f) { addLog(cs, "agent", "Flag resolved: " + f.t + ". " + f.r); });
+      addLog(cs, "agent", "Recommendation updated: " + c.reco + " to " + d.reco + ". Risk rating " + r.level + " (" + r.score + "). Awaiting officer decision.");
+    } else {
+      d.flags.forEach(function (f) { addLog(cs, "flag", f.t + " (" + f.s + ", policy " + f.p + ")"); });
+      addLog(cs, "agent", "Recommendation: " + d.reco + ". Risk rating " + r.level + " (" + r.score + "). Awaiting officer decision.");
+      if (c.next.type === "outreach") { cs.out = "draft"; cs.msg = c.next.body; addLog(cs, "agent", "Drafted a client message in " + c.next.lang + " for the officer to review (policy §7.2)"); }
+      if (c.next.type === "hold") addLog(cs, "agent", "Held back from contacting the client (policy §4.3). Escalation pack prepared.");
+    }
+    setDraft(cs, d);
+    document.getElementById("live-status").textContent = c.name + ": analysis complete, recommendation " + d.reco;
+    maybeStp(c);
+    refreshAll(c);
+    checkBatchDone();
+  }
+
+  function maybeStp(c) {
+    var cs = state.cases[c.id], d = D(c);
+    if (!state.stp || cs.decision || !cs.done || cs.running || !stpEligible(d)) return;
+    cs.decision = "Approved"; cs.by = "agent"; cs.override = false;
+    cs.comment = cs.comment || d.rationale;
+    addLog(cs, "agent", "Straight-through approval under policy §6.1: Low risk, no open flags, no sanctions candidates, every check at 95% confidence or better. Post-decision QA sampling applies.");
+  }
+
+  function runAll() {
+    var idle = CASES.filter(function (cc) { var s = state.cases[cc.id]; return !s.running && !s.done; });
+    if (!idle.length) return;
+    state.batch = { start: Date.now(), end: null, ids: idle.map(function (cc) { return cc.id; }) };
+    idle.forEach(function (cc, i) { runAgent(cc, null, i * 260); });
+    renderQueue();
+  }
+  function checkBatchDone() {
+    var b = state.batch;
+    if (!b || b.end) return;
+    if (b.ids.every(function (id) { return state.cases[id].done; })) {
+      b.end = Date.now();
+      if (state.view === "queue") renderQueue();
+    }
+  }
+
+  // ---------- Client outreach ----------
+  function sendOutreach(c) {
+    var cs = state.cases[c.id];
+    cs.out = "sent"; cs.sentAt = now();
+    addLog(cs, "human", "Officer reviewed and sent the " + c.next.lang + " client request via the client portal (policy §7.2)");
+    render();
+  }
+  function simulateReply(c) {
+    var cs = state.cases[c.id];
+    cs.out = "replied"; cs.replied = true; cs.replyAt = now(); cs.tab = "results"; cs.seen = false;
+    addLog(cs, "sys", "Client reply received via the portal (simulated). " + c.next.read);
+    runAgent(c, c.next.rerun, 0);
+    render();
+  }
+
+  // ---------- Dialog ----------
+  function fmtN(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, "’"); }
+  function renderDialog() {
+    var tabs = [["crew", "The crew"], ["controls", "Guardrails"], ["biz", "Business case"]];
+    var body;
+    if (dlgTab === "crew") {
+      var cards = [
+        ["O", "Orchestrator", "Plans each case, hands checks to the four agents, assembles the recommendation, drafts client messages in the client’s language, and stops to ask when policy says so.", "plan() · delegate() · client.draft() · escalate()"],
+        ["D", "Document agent", "Reads passports and proofs of address, validates the MRZ check digits, and looks for edits: PDF revisions, fonts, compression, issuer templates.", "ocr.extract · mrz.validate · forensics.analyse"],
+        ["I", "Identity agent", "Matches names, dates of birth and addresses across the passport, the bill and the application, and tolerates spelling variants.", "match.name · match.dob · match.address"],
+        ["S", "Screening agent", "Screens sanctions, PEP lists and relatives, and adverse media. Dismisses look-alike hits only when two independent identifiers disagree, and writes down why.", "screen.sanctions · screen.pep · media.search"],
+        ["R", "Policy & risk agent", "Applies your policy as written, rates customer risk from six visible factors, and drafts the rationale an officer signs.", "policy.check · risk.score · case.recommend"]
+      ];
+      body = '<h2 id="dlg-title">How the agent crew works</h2><p>One orchestrator plans each case. Four specialist agents run their checks in parallel, call tools, and write every step to the audit trail.</p><div class="cards">' +
+        cards.map(function (x, i) { return '<div class="card' + (i === 0 ? " wide" : "") + '"><div class="ch"><span class="glyph" aria-hidden="true">' + x[0] + "</span><b>" + esc(x[1]) + "</b></div><p>" + esc(x[2]) + "</p><code>" + esc(x[3]) + "</code></div>"; }).join("") + "</div>" +
+        '<p class="dlg-foot">This demo is scripted. Every document, name and watchlist entry is synthetic, and the timings are staged. A production deployment calls real models and your screening provider under your own model-risk governance.</p>';
+    } else if (dlgTab === "controls") {
+      var rows = [
+        ["Read documents and extract fields", "Does it", "Reviews flags", "Not involved"],
+        ["Dismiss a look-alike screening hit", "Does it, with a written reason (§5.1)", "Can overrule", "Samples for audit"],
+        ["Message the client", "Drafts it", "Reviews and sends (§7.2)", "Not involved"],
+        ["Contact a client whose identity is in doubt", "Never. Holds back (§4.3)", "Never", "Decides"],
+        ["Approve a Low-risk, clean case", "Recommends, or approves straight-through if switched on (§6.1)", "Decides", "Samples for QA"],
+        ["Approve a Medium-risk case", "Recommends", "Decides", "Not involved"],
+        ["Approve a High-risk or PEP case", "Prepares the pack", "Escalates", "Decides, with senior management (§5.3)"],
+        ["Change policy or thresholds", "Never", "Never", "Owns it, versioned"]
+      ];
+      body = '<h2 id="dlg-title">What the agent may and may not do</h2><p>The agent works inside the limits your policy sets. Raising or lowering them is a policy change, not a prompt change.</p>' +
+        '<div class="matrix-wrap"><table class="matrix"><thead><tr><th>Action</th><th>Agent</th><th>Officer</th><th>Compliance</th></tr></thead><tbody>' +
+        rows.map(function (r) { return "<tr>" + r.map(function (x) { return "<td>" + esc(x) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></div>" +
+        '<div class="cards"><div class="card"><b>Every step is on the record</b><p>Each tool call, flag, override and decision is timestamped in the audit trail, and policy version ' + POLICY_VERSION + ' is stamped on every case.</p></div>' +
+        '<div class="card"><b>The agent stops when it should</b><p>Low confidence, a possible forgery, a PEP link or a High risk rating all route to a person. An officer can overrule the agent, and the override is logged.</p></div></div>';
+    } else {
+      body = '<h2 id="dlg-title">What it could save</h2><p>Illustrative. Move the sliders to your own volumes and times. The agent is assumed to leave an officer 1.5 minutes on a clean case and 8 minutes on an exception.</p>' +
+        '<div class="calc">' +
+        '<div class="ctl"><label for="c-vol">Applications per month <output id="o-vol">250</output></label><input id="c-vol" type="range" min="20" max="2000" step="10" value="250"></div>' +
+        '<div class="ctl"><label for="c-man">Manual review per case <output id="o-man">38 min</output></label><input id="c-man" type="range" min="10" max="90" step="1" value="38"></div>' +
+        '<div class="ctl"><label for="c-share">Cases clean on first pass <output id="o-share">62%</output></label><input id="c-share" type="range" min="10" max="90" step="1" value="62"></div>' +
+        '<div class="ctl"><label for="c-rate">Loaded cost per officer hour <output id="o-rate">CHF 90</output></label><input id="c-rate" type="range" min="40" max="200" step="5" value="90"></div></div>' +
+        '<div class="outs" aria-live="polite"><div><div class="label">Officer time per case</div><div class="v" id="r-min">38 → 4.0 min</div></div><div><div class="label">Hours saved a month</div><div class="v" id="r-hrs">142</div></div>' +
+        '<div><div class="label">Officers freed up</div><div class="v" id="r-fte">1.0 FTE</div><div class="s">at 140 productive hours a month</div></div><div><div class="label">Saved a year</div><div class="v" id="r-chf">CHF 153’000</div></div></div>' +
+        '<p class="dlg-foot">Hours saved = applications × (manual minutes − assisted minutes) ÷ 60. Assisted minutes = clean share × 1.5 + exception share × 8. These are assumptions, not measurements from this demo.</p>';
+    }
+    dialog.innerHTML = '<div class="dlg-head"><div class="tabs" role="tablist">' + tabs.map(function (t) {
+      return '<button class="tab" role="tab" type="button" data-dtab="' + t[0] + '" aria-selected="' + (dlgTab === t[0]) + '">' + t[1] + "</button>";
+    }).join("") + '</div><button class="btn dlg-x" type="button" data-dclose>Close</button></div><div class="dlg-body">' + body + "</div>";
+    if (dlgTab === "biz") calc();
+  }
+  function calc() {
+    var v = +$("#c-vol").value, m = +$("#c-man").value, s = +$("#c-share").value / 100, rate = +$("#c-rate").value;
+    var after = s * 1.5 + (1 - s) * 8, saved = v * (m - after) / 60;
+    $("#o-vol").textContent = fmtN(v); $("#o-man").textContent = m + " min"; $("#o-share").textContent = Math.round(s * 100) + "%"; $("#o-rate").textContent = "CHF " + rate;
+    $("#r-min").textContent = m + " → " + after.toFixed(1) + " min";
+    $("#r-hrs").textContent = fmtN(Math.max(0, saved));
+    $("#r-fte").textContent = (Math.max(0, saved) / 140).toFixed(1) + " FTE";
+    $("#r-chf").textContent = "CHF " + fmtN(Math.max(0, saved) * 12 * rate);
+  }
+  function openDialog() { renderDialog(); if (dialog.showModal) dialog.showModal(); else dialog.setAttribute("open", ""); }
+
+  // ---------- Router ----------
+  function render() {
+    if (state.view === "queue") renderQueue();
+    else renderCase(byId(state.view));
+  }
+  function reducedMotion() { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+
+  app.addEventListener("click", function (e) {
+    var t = e.target.closest("button");
+    if (!t) return;
+    var c = state.view !== "queue" ? byId(state.view) : null;
+    var cs = c ? state.cases[c.id] : null;
+    if (t.hasAttribute("data-open")) { state.view = t.getAttribute("data-open"); render(); window.scrollTo(0, 0); }
+    else if (t.hasAttribute("data-back")) { state.view = "queue"; render(); }
+    else if (t.hasAttribute("data-runall")) runAll();
+    else if (t.hasAttribute("data-run")) { runAgent(c, null, 0); render(); }
+    else if (t.hasAttribute("data-tab")) { cs.tab = t.getAttribute("data-tab"); render(); }
+    else if (t.hasAttribute("data-audit")) { cs.tab = "audit"; render(); }
+    else if (t.hasAttribute("data-crew-toggle")) { cs.crew = cs.crew === "min" ? "open" : "min"; render(); }
+    else if (t.hasAttribute("data-forensic")) { cs.forensic = !cs.forensic; render(); }
+    else if (t.hasAttribute("data-send")) sendOutreach(c);
+    else if (t.hasAttribute("data-reply")) simulateReply(c);
+    else if (t.hasAttribute("data-reopen")) {
+      cs.decision = null; cs.by = null; addLog(cs, "human", "Officer reopened the case after a straight-through approval"); render();
+    }
+    else if (t.hasAttribute("data-show")) {
+      var ids = t.getAttribute("data-show").split(",");
+      cs.pin = cs.pin.join(",") === ids.join(",") ? [] : ids;
+      render();
+      var first = cs.pin.length ? app.querySelector('[data-f="' + cs.pin[0] + '"]') : null;
+      if (first) first.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
+    }
+    else if (t.hasAttribute("data-decide")) {
+      if (!cs.comment.trim()) { cs.err = true; render(); var ta = document.getElementById("comment-" + c.id); if (ta) ta.focus(); return; }
+      var d = D(c), choice = t.getAttribute("data-decide");
+      if (choice === "Approved" && riskOf(d).level === "HIGH") return;
+      cs.err = false; cs.decision = choice; cs.by = "officer";
+      cs.override = (choice === "Approved" && d.reco !== "CLEAR") || (choice !== "Approved" && d.reco === "CLEAR");
+      addLog(cs, "human", "Decision: " + choice + (cs.override ? " (overrides the agent's " + d.reco + " recommendation)" : "") + " · “" + cs.comment.trim() + "”");
+      render();
+    }
+    else if (t.hasAttribute("data-json")) { cs.json = JSON.stringify(auditPayload(c, cs), null, 2); render(); }
+    else if (t.hasAttribute("data-copy")) {
+      var area = document.getElementById("json-" + c.id), flag = app.querySelector("[data-copied]");
+      var done = function () { if (flag) flag.hidden = false; };
+      var fallback = function () { if (area) { area.focus(); area.select(); } };
+      try { navigator.clipboard.writeText(cs.json).then(done, fallback); } catch (err) { fallback(); }
+    }
+  });
+
+  app.addEventListener("input", function (e) {
+    if (state.view === "queue") return;
+    var cs = state.cases[state.view];
+    if (e.target.hasAttribute("data-comment")) {
+      cs.comment = e.target.value;
+      if (cs.err && cs.comment.trim()) { cs.err = false; e.target.classList.remove("err"); var m = app.querySelector(".err-msg"); if (m) m.remove(); }
+    } else if (e.target.hasAttribute("data-msg")) cs.msg = e.target.value;
+  });
+  app.addEventListener("change", function (e) {
+    if (e.target.hasAttribute("data-stp")) {
+      state.stp = e.target.checked;
+      if (state.stp) CASES.forEach(maybeStp);
+      renderQueue();
+      var sw = app.querySelector("[data-stp]"); if (sw) sw.focus();
+    }
+  });
+  // Pointing at a flag, comparison row or screening hit lights up its evidence in the documents.
+  app.addEventListener("mouseover", function (e) {
+    if (state.view === "queue") return;
+    var el = e.target.closest("[data-ev]"), cs = state.cases[state.view];
+    if (!el || (e.relatedTarget && el.contains(e.relatedTarget))) return;
+    cs.hover = el.getAttribute("data-ev").split(",");
+    paintHighlights(byId(state.view), cs);
+  });
+  app.addEventListener("mouseout", function (e) {
+    if (state.view === "queue") return;
+    var el = e.target.closest("[data-ev]"), cs = state.cases[state.view];
+    if (!el || (e.relatedTarget && el.contains(e.relatedTarget))) return;
+    cs.hover = [];
+    paintHighlights(byId(state.view), cs);
+  });
+  // `toggle` does not bubble, so listen in the capture phase to remember which sections the officer opened.
+  app.addEventListener("toggle", function (e) {
+    var el = e.target;
+    if (state.view !== "queue" && el.getAttribute && el.getAttribute("data-sec")) state.cases[state.view].open[el.getAttribute("data-sec")] = el.open;
+  }, true);
+
+  dialog.addEventListener("click", function (e) {
+    if (e.target === dialog || e.target.hasAttribute("data-dclose")) { dialog.close(); return; }
+    var t = e.target.closest("[data-dtab]");
+    if (t) { dlgTab = t.getAttribute("data-dtab"); renderDialog(); }
+  });
+  dialog.addEventListener("input", function (e) { if (e.target.type === "range") calc(); });
+
+  try { window.matchMedia("(max-width: 760px)").addEventListener("change", function () { if (state.view !== "queue") render(); }); } catch (err) { /* older browsers keep the layout they loaded with */ }
+  document.getElementById("home").addEventListener("click", function () { state.view = "queue"; render(); });
+  document.getElementById("crew-open").addEventListener("click", openDialog);
+  document.getElementById("reset").addEventListener("click", function () {
+    CASES.forEach(function (c) { state.cases[c.id].timers.forEach(clearTimeout); });
+    if (dialog.open) dialog.close();
+    state = freshState(); render(); window.scrollTo(0, 0);
+  });
+
+  render();
+})();
+</script>
