@@ -1,0 +1,10 @@
+{
+  // Static site on Cloudflare Workers (Static Assets). No Worker script and no build step:
+  // everything in public/ is served as it is.
+  // The name must match the Worker created in the Cloudflare dashboard.
+  "name": "letsgetbuilding",
+  "compatibility_date": "2026-10-13",
+  "assets": {
+    "directory": "./public"
+  }
+}

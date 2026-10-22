@@ -1,0 +1,14 @@
+{
+  "name": "valriche-estate-3d",
+  "private": true,
+  "description": "3D model of Heritage Villas Valriche, Bel Ombre, Mauritius",
+  "scripts": {
+    "build": "echo No build step: public/ is served as it is",
+    "test": "node tools/test_vehicle.js",
+    "preview": "npx wrangler dev",
+    "deploy": "npx wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.152.0"
+  }
+}

@@ -1,0 +1,342 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Valriche Estate 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: full-bleed 3D estate model; floating chart-table panel on the left, mode switch top-right, minimap bottom-right. */
+:root {
+  --bg: #f3f5f1;           /* panel paper, faint cane-green bias */
+  --bg-2: #e6ebe3;
+  --fg: #1d2a26;
+  --muted: #5d6b65;
+  --line: #cdd6cf;
+  --accent: #0d6c73;       /* lagoon */
+  --accent-fg: #ffffff;
+  --cane: #a87b22;         /* sugar-cane gold, secondary */
+  --ok: #2f7d4a; --warn: #a86a12; --bad: #b8431b;
+  --sky: #c7dde6;
+  --shadow: 0 10px 30px rgba(20, 40, 35, .18);
+  --f-display: "Young Serif", Georgia, "Times New Roman", serif;
+  --f-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #151d1c; --bg-2: #1e2826; --fg: #e3ebe7; --muted: #94a59e; --line: #2f3d3a;
+  --accent: #48b2ba; --accent-fg: #06201f; --cane: #d6a84a;
+  --ok: #5fbf7f; --warn: #e0a447; --bad: #f07a50; --sky: #c7dde6;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .45); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #151d1c; --bg-2: #1e2826; --fg: #e3ebe7; --muted: #94a59e; --line: #2f3d3a;
+  --accent: #48b2ba; --accent-fg: #06201f; --cane: #d6a84a;
+  --ok: #5fbf7f; --warn: #e0a447; --bad: #f07a50; --sky: #c7dde6;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .45); color-scheme: dark }
+
+[hidden] { display: none !important }
+html, body { height: 100%; overflow: hidden; margin: 0 }
+body { background: var(--sky); color: var(--fg); font-family: var(--f-body); font-size: 14px; }
+#view { position: fixed; inset: 0; }
+#view canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none }
+button, input, select { font: inherit; color: inherit }
+button { cursor: pointer }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.glass { background: color-mix(in srgb, var(--bg) 94%, transparent); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: var(--shadow); backdrop-filter: blur(8px) }
+
+/* ---------- side panel ---------- */
+#panel { position: fixed; z-index: 5; top: max(16px, env(safe-area-inset-top, 0px));
+  left: max(16px, env(safe-area-inset-left, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  width: 340px; display: flex; flex-direction: column; overflow: hidden }
+#panel header { padding: 16px 18px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 4px }
+.eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--cane); font-weight: 600 }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-height: 1.1; margin: 0; text-wrap: balance }
+.coords { font-family: var(--f-mono); font-size: 11px; color: var(--muted) }
+.tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--line) }
+.tabs button { flex: 1; background: none; border: 0; padding: 8px 4px 10px; font-weight: 600; color: var(--muted);
+  border-bottom: 2px solid transparent; margin-bottom: -1px }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent) }
+.tabpane { overflow-y: auto; padding: 14px 18px 18px; display: grid; gap: 18px; align-content: start; flex: 1; min-height: 0 }
+.group { display: grid; gap: 8px }
+.group h2 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; margin: 0; color: var(--muted); font-weight: 600 }
+.chk { display: grid; grid-template-columns: 18px 14px 1fr auto; align-items: center; gap: 8px; cursor: pointer; padding: 2px 0 }
+.chk input { margin: 0; accent-color: var(--accent) }
+.sw { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.2) }
+.n { font-family: var(--f-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums }
+.chips { display: flex; flex-wrap: wrap; gap: 6px }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 4px 10px; font-size: 12px;
+  display: inline-flex; gap: 6px; align-items: center }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg) }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none }
+.v-verified { background: var(--ok) } .v-unverified { background: var(--warn) } .v-flagged { background: var(--bad) }
+.range { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center }
+.range input { width: 100%; accent-color: var(--accent) }
+.note { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0 }
+#search { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2) }
+.plist { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none }
+.plist button { width: 100%; text-align: left; background: none; border: 0; padding: 7px 6px; border-radius: 6px;
+  display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center }
+.plist button:hover { background: var(--bg-2) }
+.plist .cat { font-size: 11px; color: var(--muted) }
+.facts { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none }
+.facts li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; line-height: 1.45 }
+.facts li .dot { margin-top: 6px }
+.facts a { color: var(--accent) }
+.facts small { color: var(--muted); display: block }
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px }
+.stat { background: var(--bg-2); border-radius: 8px; padding: 8px 10px }
+.stat b { font-family: var(--f-mono); font-size: 18px; font-weight: 600; display: block; font-variant-numeric: tabular-nums }
+.stat span { font-size: 11px; color: var(--muted) }
+
+/* ---------- mode switch ---------- */
+#modes { position: fixed; z-index: 6; top: max(16px, env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px)); display: flex; padding: 4px; gap: 4px }
+#modes button { border: 0; background: none; padding: 8px 14px; border-radius: 8px; font-weight: 600 }
+#modes button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg) }
+#panelToggle { display: none }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; z-index: 4; left: 50%; transform: translateX(-50%);
+  bottom: max(16px, env(safe-area-inset-bottom, 0px)); padding: 10px 16px; display: flex; gap: 18px; align-items: center }
+#hud .speed { font-family: var(--f-mono); font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1 }
+#hud .speed small { font-size: 12px; color: var(--muted); font-weight: 400 }
+#hud .meta { display: grid; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0 }
+#hud .meta b { color: var(--fg); font-weight: 600 }
+#hud .bar { height: 4px; background: var(--bg-2); border-radius: 2px; width: 180px; overflow: hidden }
+#hud .bar i { display: block; height: 100%; background: var(--cane); width: 0 }
+#hud .btns { display: flex; gap: 6px }
+#hud .btns button { border: 1px solid var(--line); background: var(--bg-2); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 600 }
+#hud .btns button[aria-pressed="true"] { background: var(--fg); color: var(--bg) }
+#keys { font-size: 11px; color: var(--muted); font-family: var(--f-mono) }
+
+#pads { position: fixed; z-index: 4; inset: auto 0 0 0; pointer-events: none; display: none;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(96px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  justify-content: space-between }
+#pads > div { display: flex; gap: 10px; pointer-events: auto; align-items: center }
+#pads button { width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 85%, transparent);
+  font-size: 22px; font-weight: 600; user-select: none; -webkit-user-select: none; touch-action: none }
+#pads button.on { background: var(--accent); color: var(--accent-fg) }
+#pads button.small { font-size: 13px }
+.stick { width: 150px; height: 64px; border-radius: 32px; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 70%, transparent);
+  justify-content: center; align-items: center; touch-action: none; user-select: none; -webkit-user-select: none }
+.stick span { width: 52px; height: 52px; border-radius: 50%; background: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,.25); transition: transform .05s }
+
+/* ---------- minimap ---------- */
+#mini { position: fixed; z-index: 4; right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px)); padding: 6px; display: grid; gap: 4px }
+#mini canvas { display: block; border-radius: 6px; cursor: crosshair; width: 220px; height: 139px }
+#mini .cap { font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; padding: 0 2px }
+
+/* ---------- labels & info ---------- */
+#labels { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden }
+.lbl { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: auto; cursor: pointer;
+  display: flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; font-weight: 600;
+  padding: 3px 8px 3px 6px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 90%, transparent);
+  border: 1px solid var(--line); color: var(--fg); box-shadow: 0 2px 8px rgba(0,0,0,.12) }
+.lbl.big { font-size: 13px; padding: 4px 10px 4px 7px }
+#info { position: fixed; z-index: 7; width: 320px; max-width: calc(100vw - 32px); padding: 14px 16px; display: grid; gap: 8px;
+  top: calc(max(16px, env(safe-area-inset-top, 0px)) + 60px); right: max(16px, env(safe-area-inset-right, 0px)) }
+#info h3 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 19px; padding-right: 24px; text-wrap: balance }
+#info dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px }
+#info dt { color: var(--muted) } #info dd { margin: 0; min-width: 0; overflow-wrap: anywhere }
+#info .x { position: absolute; top: 8px; right: 8px; border: 0; background: none; font-size: 18px; color: var(--muted); padding: 4px 8px }
+.status { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600 }
+
+#loading { position: fixed; inset: 0; display: grid; place-items: center; z-index: 20; background: var(--sky); color: #1d2a26;
+  font-family: var(--f-display); font-size: 22px }
+#loading small { display: block; font-family: var(--f-body); font-size: 13px; color: #44544e; text-align: center; margin-top: 6px }
+
+@media (max-width: 760px) {
+  #panel { top: auto; height: min(62vh, 520px); width: auto; right: max(16px, env(safe-area-inset-right, 0px)); transition: transform .25s }
+  #panel.closed { transform: translateY(calc(100% + 40px)) }
+  #panelToggle { display: block; position: fixed; z-index: 6; left: max(16px, env(safe-area-inset-left, 0px));
+    top: max(16px, env(safe-area-inset-top, 0px)); padding: 10px 14px; font-weight: 600 }
+  #modes button { padding: 8px 10px }
+  #mini canvas { width: 132px; height: 83px }
+  #mini { bottom: auto; top: calc(max(16px, env(safe-area-inset-top, 0px)) + 58px) }
+  #mini .cap span:first-child { display: none }
+  #hud { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); transform: none;
+    bottom: max(16px, env(safe-area-inset-bottom, 0px)); flex-wrap: wrap; gap: 10px }
+  #pads { padding-bottom: calc(222px + env(safe-area-inset-bottom, 0px)) }
+  #hud .bar { width: 120px } #keys { display: none }
+  #info { top: auto; bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + 120px); left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto }
+}
+@media (prefers-reduced-motion: reduce) { #panel { transition: none } }
+
+/* ---------- v2 additions ---------- */
+#gauge { width: 96px; height: 87px; color: var(--fg); flex: none }
+.wx-read { display: flex; flex-wrap: wrap; gap: 6px }
+.wx-read span { background: var(--bg-2); border-radius: 8px; padding: 6px 9px; font-size: 12px }
+.wx-read b { font-family: var(--f-mono); font-size: 15px }
+.tabs button { font-size: 13px; padding-inline: 2px }
+#modes button.drop[aria-pressed="true"] { background: var(--cane); color: #1d1a12 }
+#placeHint { position: fixed; z-index: 8; left: 50%; transform: translateX(-50%); top: calc(max(16px, env(safe-area-inset-top, 0px)) + 64px);
+  padding: 10px 16px; font-weight: 600; display: flex; gap: 12px; align-items: center }
+#placeHint button { border: 1px solid var(--line); background: var(--bg-2); border-radius: 8px; padding: 4px 10px; font-weight: 600 }
+body.placing #view canvas { cursor: crosshair }
+.gears { display: flex; gap: 4px }
+.gears button { border: 1px solid var(--line); background: var(--bg-2); border-radius: 8px; padding: 6px 9px; font-size: 12px; font-weight: 600 }
+.gears button[aria-pressed="true"] { background: var(--cane); color: #1d1a12; border-color: var(--cane) }
+.cart-preview { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center }
+#numIn { width: 96px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2);
+  font-family: var(--f-mono); font-size: 22px; font-weight: 600; text-align: center }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px }
+.swatches button { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); padding: 0 }
+.swatches button[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 2px }
+.btn-primary { border: 0; background: var(--accent); color: var(--accent-fg); border-radius: 10px; padding: 10px 14px; font-weight: 600 }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px }
+.btn-ghost { border: 1px solid var(--line); background: var(--bg-2); border-radius: 10px; padding: 10px 14px; font-weight: 600 }
+#info .actions { display: flex; gap: 8px; flex-wrap: wrap }
+#info .actions button { border: 1px solid var(--line); background: var(--bg-2); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 600 }
+#toast { position: fixed; z-index: 9; left: 50%; transform: translateX(-50%); top: calc(max(16px, env(safe-area-inset-top, 0px)) + 112px);
+  padding: 8px 14px; font-weight: 600; font-size: 13px }
+@media (min-width: 761px) {
+  #hud { left: calc(max(16px, env(safe-area-inset-left, 0px)) + 356px); right: calc(max(16px, env(safe-area-inset-right, 0px)) + 250px);
+    transform: none; justify-content: space-between; flex-wrap: nowrap; padding: 6px 12px }
+  #hud .meta { flex: 1 1 auto }
+  #hud .btns { flex-wrap: wrap; justify-content: flex-end; max-width: 46% }
+  #placeHint { left: calc(50% + 178px) }
+}
+@media (max-width: 760px) { #modes button { padding: 8px 9px; font-size: 13px } #placeHint { top: calc(max(16px, env(safe-area-inset-top, 0px)) + 150px); width: calc(100vw - 32px); justify-content: space-between } .gears button { padding: 6px 7px } }
+</style>
+
+<div id="view"></div>
+<div id="labels"></div>
+<div id="loading"><div>Surveying Bel Ombre…<small>Loading satellite imagery, terrain, trees and the estate villas</small></div></div>
+
+<button id="panelToggle" class="glass" aria-controls="panel">Menu</button>
+
+<aside id="panel" class="glass closed" aria-label="Filters and information">
+  <header>
+    <span class="eyebrow">Domaine de Bel Ombre · Savanne · Mauritius</span>
+    <h1>Heritage Villas Valriche</h1>
+    <span class="coords">20°29′55″S 57°24′45″E · sun in the north</span>
+  </header>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="filters" id="tab-filters">Filters</button>
+    <button role="tab" aria-selected="false" data-tab="cart" id="tab-cart">Cart</button>
+    <button role="tab" aria-selected="false" data-tab="weather" id="tab-weather">Weather</button>
+    <button role="tab" aria-selected="false" data-tab="places" id="tab-places">Places</button>
+    <button role="tab" aria-selected="false" data-tab="facts" id="tab-facts">Sources</button>
+  </div>
+
+  <div class="tabpane" data-pane="filters">
+    <div class="stat-row">
+      <div class="stat"><b id="st-vis">–</b><span>footprints shown</span></div>
+      <div class="stat"><b id="st-val">–</b><span>Valriche plots</span></div>
+      <div class="stat"><b id="st-poi">–</b><span>places shown</span></div>
+    </div>
+    <div class="group" id="g-cat"><h2>Buildings by area</h2></div>
+    <div class="group" id="g-src"><h2>Footprint source</h2></div>
+    <div class="group">
+      <h2>Storeys (estimated)</h2>
+      <div class="chips" id="g-floor"></div>
+    </div>
+    <div class="group">
+      <h2>Focus</h2>
+      <label class="chk"><input type="checkbox" id="f-dim"><span></span><span>Fade everything outside Valriche</span><span></span></label>
+      <label class="chk"><input type="checkbox" id="f-zone" checked><span class="sw" style="background:#d9822b"></span><span>Valriche outline (inferred)</span><span></span></label>
+    </div>
+    <div class="group" id="g-layers"><h2>Landscape</h2></div>
+    <div class="group">
+      <h2>Terrain height</h2>
+      <div class="range"><input type="range" id="f-ex" min="1" max="2.5" step="0.25" value="1.25" aria-label="Terrain exaggeration"><span class="n" id="f-ex-v">1.25×</span></div>
+      <p class="note">Elevation is a 30 m surface model, so tree canopy is included. Exaggeration lifts the hills only.</p>
+    </div>
+  </div>
+
+  <div class="tabpane" data-pane="cart" hidden>
+    <div class="group">
+      <h2>Race number</h2>
+      <div class="cart-preview"><input id="numIn" type="number" min="0" max="999" value="36" aria-label="Cart number"><p class="note">Shown on both sides, the bonnet, the roof and the number plate.</p></div>
+    </div>
+    <div class="group"><h2>Paint</h2><div class="swatches" id="g-paint"></div></div>
+    <div class="group"><h2>Stickers</h2><div class="chips" id="g-stick"></div></div>
+    <div class="group"><h2>Top speed</h2><div class="gears" id="g-gear-panel"></div>
+      <p class="note">Estate is a real golf cart. Sport and Turbo are not road legal, even in Bel Ombre.</p></div>
+    <div class="group"><h2>Steering feel</h2><div class="chips" id="g-feel"></div>
+      <p class="note">Relaxed builds the wheel slowly and is the calmest. Sharp reacts faster. At speed the turn rate is always capped, so a flick of the keys nudges the cart rather than snapping it round.</p></div>
+    <div class="group"><h2>Start</h2>
+      <div class="btn-row"><button class="btn-primary" id="b-drop">Drop cart on the map</button><button class="btn-ghost" id="b-club">Start at the clubhouse</button></div>
+    </div>
+  </div>
+
+  <div class="tabpane" data-pane="weather" hidden>
+    <div class="group">
+      <h2>Conditions</h2>
+      <div class="wx-read" id="wx-read"></div>
+      <p class="note" id="wx-status">Asking AccuWeather for the current conditions…</p>
+      <button class="btn-primary" id="wx-allow" hidden>Allow live weather</button>
+    </div>
+    <div class="group"><h2>Weather</h2><div class="chips" id="g-wx"></div>
+      <p class="note">Live uses your AccuWeather connector: cloud cover, cloud base, wind, gusts, visibility and rain shape the sky, the sea, the trees and the kites.</p></div>
+    <div class="group">
+      <h2>Time of day</h2>
+      <div class="range"><input type="range" id="wx-time" min="0" max="24" step="0.25" aria-label="Time of day"><button class="chip" id="wx-now" aria-pressed="true">Now</button></div>
+      <p class="note" id="wx-clock"></p>
+      <p class="note">The sun is placed with a solar-position formula for Bel Ombre (20.5°S). At night villa windows and pools light up and the cart switches its headlights on.</p>
+    </div>
+  </div>
+
+  <div class="tabpane" data-pane="places" hidden>
+    <input id="search" type="search" placeholder="Search places, e.g. Château" aria-label="Search places">
+    <div class="group"><h2>Category</h2><div class="chips" id="g-pcat"></div></div>
+    <div class="group"><h2>Fact-check status</h2><div class="chips" id="g-pv"></div></div>
+    <ul class="plist" id="plist"></ul>
+  </div>
+
+  <div class="tabpane" data-pane="facts" hidden>
+    <div class="group"><h2>The estate, checked</h2><ul class="facts" id="facts"></ul></div>
+    <div class="group"><h2>What the model is built from</h2><ul class="facts" id="sources"></ul></div>
+    <div class="group"><h2>Known limits</h2><ul class="facts" id="limits"></ul></div>
+  </div>
+</aside>
+
+<div id="modes" class="glass" role="group" aria-label="View mode">
+  <button data-mode="explore" aria-pressed="true">Explore</button>
+  <button class="drop" id="m-drop" aria-pressed="false">Drop cart</button>
+  <button data-mode="drive" aria-pressed="false">Drive</button>
+  <button data-mode="tour" aria-pressed="false">Tour</button>
+</div>
+
+<div id="placeHint" class="glass" hidden><span>Tap or click anywhere on the land to drop your cart</span><button id="b-cancel-drop">Cancel</button></div>
+<div id="toast" class="glass" hidden></div>
+
+<div id="hud" class="glass" hidden>
+  <canvas id="gauge" width="220" height="200" aria-label="Speedometer"></canvas>
+  <div class="meta">
+    <span id="hud-line"><b>Cart 36</b></span>
+    <span id="hud-near">On the estate roads</span>
+    <div class="bar" id="hud-bar" hidden><i id="hud-prog"></i></div>
+    <span id="keys">W A S D or arrows · Space handbrake drift · Shift boost · C camera · R road · P drop · 1 2 3 gears · gamepad works</span>
+  </div>
+  <div class="btns">
+    <div class="gears" id="g-gear"></div>
+    <button id="b-cam" aria-pressed="false">Driver view</button>
+    <button id="b-sound" aria-pressed="false">Sound</button>
+    <button id="b-tspeed" hidden>Speed 1×</button>
+    <button id="b-pause" hidden aria-pressed="false">Pause</button>
+  </div>
+</div>
+
+<div id="pads" aria-hidden="true">
+  <div class="stick" id="stick" aria-label="Steer"><span></span></div>
+  <div><button data-k="brake" class="small">Drift</button><button data-k="down">▼</button><button data-k="up">▲</button></div>
+</div>
+
+<div id="mini" class="glass"><canvas id="minic" width="440" height="278" aria-label="Minimap, click to jump"></canvas>
+  <div class="cap"><span>Bel Ombre · click to jump</span><span>N ↑</span></div></div>
+
+<div id="info" class="glass" hidden><button class="x" id="info-x" aria-label="Close">×</button><div id="info-body"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="js/world.js"></script>
+<script src="js/weather.js"></script>
+<script src="js/people.js"></script>
+<script src="js/villas.js"></script>
+<script src="js/cart.js"></script>
+<script src="js/vehicle.js"></script>
+<script src="js/app.js"></script>
