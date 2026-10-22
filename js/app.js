@@ -539,15 +539,14 @@ function refreshCart() {
 
 const GEARS = { estate: { label: 'Estate', max: 24, acc: 3.2 }, sport: { label: 'Sport', max: 60, acc: 6.5 }, turbo: { label: 'Turbo', max: 120, acc: 11 } };
 let gear = store.get('gear', 'sport');
-const car = { x: 0, z: 0, h: 0, v: 0, y: 0, vy: 0, air: false, steer: 0, steerAngle: 0, lastY: 0 };
 const keys = { up: false, down: false, left: false, right: false, brake: false, boost: false };
-let camMode = 'chase';
+const CAMS = { chase: 'Chase cam', cinema: 'Cinematic', driver: 'Driver view' };
+let camMode = store.get('cam-mode', 'chase');
+if (!CAMS[camMode]) camMode = 'chase';
 
 // ------------------------------------------------------------------ collision world
-// Colliders: every visible building footprint plus each villa's pool terrace. The cart is three
-// overlapping circles along its length; overlaps are pushed out along the wall normal, so the cart
-// slides along walls instead of passing through them. Movement is sub-stepped (≤ 0.35 m per step)
-// so nothing tunnels through a wall at 120 km/h.
+// Colliders: every visible building footprint plus each villa's pool terrace. The vehicle model
+// (js/vehicle.js) pushes its three wheel-base circles out of them and slides along the wall.
 const CELL = 24; let grid = new Map(), colliders = [];
 function rebuildColliders() {
   grid = new Map(); colliders = [];
@@ -569,7 +568,6 @@ function inPoly(x, z, p) {
   }
   return c;
 }
-// push a circle (x,z,r) out of nearby colliders; returns {x,z,nx,nz,hit}
 function pushOut(x, z, r, y) {
   let hit = false, nxs = 0, nzs = 0;
   for (let it = 0; it < 3; it++) {
@@ -578,38 +576,48 @@ function pushOut(x, z, r, y) {
     let moved = false;
     for (const ci of l) {
       const c = colliders[ci]; if (y > c.top) continue;
-      const p = c.p, n = p.length / 2;
-      let bd = Infinity, bx = 0, bz = 0;
-      for (let i = 0, j = n - 1; i < n; j = i++) {
-        const ax = p[j * 2], az = p[j * 2 + 1], ex = p[i * 2] - ax, ez = p[i * 2 + 1] - az, L2 = ex * ex + ez * ez || 1;
-        const t = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / L2));
-        const qx = ax + ex * t, qz = az + ez * t, d = (x - qx) ** 2 + (z - qz) ** 2;
-        if (d < bd) { bd = d; bx = qx; bz = qz; }
-      }
-      const inside = inPoly(x, z, p), d = Math.sqrt(bd);
-      if (!inside && d >= r) continue;
-      let nx = (x - bx) / (d || 1), nz = (z - bz) / (d || 1);
-      if (inside) { nx = -nx; nz = -nz; }
-      const push = inside ? d + r : r - d;
-      x += nx * push; z += nz * push; nxs += nx; nzs += nz; hit = moved = true;
+      const q = VR.circlePolyPush(x, z, r, c.p);
+      if (q) { x = q.x; z = q.z; nxs += q.nx; nzs += q.nz; hit = moved = true; }
     }
     if (!moved) break;
   }
   const nl = Math.hypot(nxs, nzs) || 1;
   return { x, z, nx: nxs / nl, nz: nzs / nl, hit };
 }
-const CART_R = 0.8, CART_OFF = [-1.15, 0, 1.15];   // circle centres along the heading (m)
-function resolveCart() {
-  const fx = Math.sin(car.h), fz = -Math.cos(car.h);
-  let hit = null;
-  for (const o of CART_OFF) {
-    const cx = car.x + fx * o, cz = car.z + fz * o;
-    const r = pushOut(cx, cz, CART_R, car.y);
-    if (r.hit) { car.x += r.x - cx; car.z += r.z - cz; hit = r; }
-  }
-  return hit;
+function insideCollider(x, z, y) {
+  const l = grid.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL));
+  if (l) for (const ci of l) { const c = colliders[ci]; if (y < c.top && inPoly(x, z, c.p)) return true; }
+  return false;
 }
-function groundY(x, z) { return Math.max(H(x, z), SEA + 0.4); }
+// The drivable surface: the rendered terrain lightly smoothed over ~1.3 m, so the 30 m surface
+// model's tree-canopy bumps don't rattle the cart, while it still sits on the visible ground.
+function groundY(x, z) {
+  const s = 1.3, c = H(x, z);
+  return Math.max(SEA + 0.4, (c * 2 + H(x + s, z) + H(x - s, z) + H(x, z + s) + H(x, z - s)) / 6);
+}
+// roads and cart paths: grid of segments for "am I on the tarmac?"
+const RCELL = 20, roadGrid = new Map();
+for (const r of S.roads) {
+  if (['footway', 'path', 'steps'].includes(r.c)) continue;
+  const w = (ROAD[r.c] || ROAD.unknown)[0] / 2 + 0.6;
+  for (let k = 0; k < r.p.length - 2; k += 2) {
+    const seg = [r.p[k], r.p[k + 1], r.p[k + 2], r.p[k + 3], w];
+    for (let gx = Math.floor((Math.min(seg[0], seg[2]) - w) / RCELL); gx <= Math.floor((Math.max(seg[0], seg[2]) + w) / RCELL); gx++)
+      for (let gz = Math.floor((Math.min(seg[1], seg[3]) - w) / RCELL); gz <= Math.floor((Math.max(seg[1], seg[3]) + w) / RCELL); gz++) {
+        const key = gx + ',' + gz; if (!roadGrid.has(key)) roadGrid.set(key, []); roadGrid.get(key).push(seg);
+      }
+  }
+}
+function surfaceAt(x, z) {
+  const l = roadGrid.get(Math.floor(x / RCELL) + ',' + Math.floor(z / RCELL));
+  if (l) for (const [ax, az, bx, bz, w] of l) {
+    const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
+    if ((ax + dx * t - x) ** 2 + (az + dz * t - z) ** 2 < w * w) return 'road';
+  }
+  return 'grass';
+}
+const car = new VR.Vehicle({ ground: groundY, water: (x, z) => hRaw(x, z) < 0.5, surface: surfaceAt, pushOut });
+Object.defineProperty(car, 'v', { get() { return this.forwardSpeed; } });
 function nearestRoad(x, z) {
   let best = null, bd = Infinity;
   for (const r of S.roads) {
@@ -625,39 +633,40 @@ function nearestRoad(x, z) {
   return best;
 }
 // ------------------------------------------------------------------ body motion
-// Four wheel contacts give the chassis attitude; pitch and roll from acceleration and cornering
-// ride on a damped spring so the body settles rather than snapping.
+// Chassis attitude from four wheel contacts on the ride surface; pitch from acceleration and roll
+// from cornering ride on a damped spring; the wheels spin with road speed and steer with the lock.
 const _F = new THREE.Vector3(), _R = new THREE.Vector3(), _U = new THREE.Vector3(), _R2 = new THREE.Vector3(), _m = new THREE.Matrix4();
-const body = { pitch: 0, pv: 0, roll: 0, rv: 0 };
+const body = { pitch: 0, pv: 0, roll: 0, rv: 0, bounce: 0, bv: 0 };
 const qBase = new THREE.Quaternion(), qLean = new THREE.Quaternion(), eLean = new THREE.Euler();
-function orientCart(dt, accel, yawRate) {
+function orientCart(dt) {
   const fx = Math.sin(car.h), fz = -Math.cos(car.h), rx = Math.cos(car.h), rz = Math.sin(car.h);
   if (!car.air) {
     const WB = 1.1, TR = 0.75;
     const fl = groundY(car.x + fx * WB - rx * TR, car.z + fz * WB - rz * TR), fr = groundY(car.x + fx * WB + rx * TR, car.z + fz * WB + rz * TR);
     const bl = groundY(car.x - fx * WB - rx * TR, car.z - fz * WB - rz * TR), br = groundY(car.x - fx * WB + rx * TR, car.z - fz * WB + rz * TR);
     _F.set(fx * 2 * WB, (fl + fr - bl - br) / 2, fz * 2 * WB).normalize(); _R.set(rx * 2 * TR, (fr + br - fl - bl) / 2, rz * 2 * TR).normalize();
-    car.y = Math.max(car.y, (fl + fr + bl + br) / 4);
   } else {
-    _F.set(fx, Math.max(-0.5, Math.min(0.5, car.vy / Math.max(8, Math.abs(car.v)))), fz).normalize(); _R.set(rx, 0, rz);
+    _F.set(fx, Math.max(-0.4, Math.min(0.4, car.vy / Math.max(8, car.speed))), fz).normalize(); _R.set(rx, 0, rz);
   }
   _U.crossVectors(_R, _F).normalize(); _R2.crossVectors(_F, _U).normalize();
   _m.makeBasis(_R2, _U, _F.clone().negate());
   qBase.setFromRotationMatrix(_m);
-  // spring-damped lean
-  const tp = Math.max(-0.06, Math.min(0.06, -(accel || 0) * 0.008)), tr = Math.max(-0.07, Math.min(0.07, (yawRate || 0) * car.v * 0.012));
-  body.pv += ((tp - body.pitch) * 60 - body.pv * 11) * dt; body.pitch += body.pv * dt;
-  body.rv += ((tr - body.roll) * 60 - body.rv * 11) * dt; body.roll += body.rv * dt;
+  const step = Math.min(dt, 1 / 30);
+  const tp = Math.max(-0.05, Math.min(0.05, -car.accel * 0.006)), tr = Math.max(-0.06, Math.min(0.06, car.yawRate * car.forwardSpeed * 0.01));
+  body.pv += ((tp - body.pitch) * 70 - body.pv * 12) * step; body.pitch += body.pv * step;
+  body.rv += ((tr - body.roll) * 70 - body.rv * 12) * step; body.roll += body.rv * step;
+  if (car.landed > 2) body.bv -= car.landed * 0.12;
+  body.bv += (-body.bounce * 90 - body.bv * 10) * step; body.bounce += body.bv * step;
   qLean.setFromEuler(eLean.set(body.pitch, 0, body.roll));
-  cart.quaternion.slerp(qBase.multiply(qLean), Math.min(1, dt * 14));
-  cart.position.set(car.x, car.y + 0.04, car.z);
-  for (const w of cartModel.wheels) w.rotation.x -= car.v * dt / 0.34;
+  cart.quaternion.slerp(qBase.multiply(qLean), Math.min(1, dt * 16));
+  cart.position.set(car.x, car.y + 0.04 + body.bounce, car.z);
+  for (const w of cartModel.wheels) w.rotation.x -= car.forwardSpeed * dt / 0.34;
   for (const f of cartModel.front) f.rotation.y = -car.steerAngle;
   return _F;
 }
 function cartFits(x, z, h) {
   const fx = Math.sin(h), fz = -Math.cos(h);
-  return CART_OFF.every(o => !pushOut(x + fx * o, z + fz * o, CART_R, -1e9).hit) && hRaw(x, z) >= 0.5;
+  return [-1.15, 0, 1.15].every(o => !pushOut(x + fx * o, z + fz * o, 0.8, -1e9).hit) && hRaw(x, z) >= 0.5;
 }
 function freeSpot(x, z, h) {
   if (cartFits(x, z, h)) return [x, z];
@@ -667,25 +676,23 @@ function freeSpot(x, z, h) {
   }
   return [x, z];
 }
+const rig = new VR.CameraRig();
 function startDrive(x, z, h) {
   [x, z] = freeSpot(x, z, h);
-  car.x = x; car.z = z; car.h = h; car.v = 0; car.y = groundY(x, z); car.vy = 0; car.air = false; car.lastY = car.y; car.steer = 0; car.steerAngle = 0;
+  car.place(x, z, h); rig.reset();
   cart.userData.placed = true;
   setMode('drive');
 }
 
-// tour path
-const T = S.tour, Tcum = [0];
-for (let k = 1; k < T.length; k++) Tcum.push(Tcum[k - 1] + Math.hypot(T[k][0] - T[k - 1][0], T[k][1] - T[k - 1][1]));
-const TLEN = Tcum[Tcum.length - 1];
-function tourAt(s) {
-  s = ((s % TLEN) + TLEN) % TLEN;
-  let lo = 0, hi = Tcum.length - 1;
-  while (lo < hi - 1) { const m = (lo + hi) >> 1; if (Tcum[m] <= s) lo = m; else hi = m; }
-  const t = (s - Tcum[lo]) / ((Tcum[hi] - Tcum[lo]) || 1);
-  return [T[lo][0] + (T[hi][0] - T[lo][0]) * t, T[lo][1] + (T[hi][1] - T[lo][1]) * t];
+// tour: an AI driver steers the same vehicle model along the estate loop
+const T = S.tour, driver = new VR.Driver(T), TLEN = driver.len;
+const tourAt = s => driver.at(s);
+const TOUR_SPEEDS = [24, 40, 60];
+let tourSpeed = 0, tourPaused = false;
+function placeOnTour(s) {
+  driver.s = s; const [x, z] = driver.at(s), [x2, z2] = driver.at(s + 5);
+  car.place(x, z, Math.atan2(x2 - x, -(z2 - z))); rig.reset(); cart.userData.placed = true;
 }
-let tourS = 0, tourMult = 1, tourPaused = false;
 // Start of the main course: beside the Heritage Golf Club clubhouse (OSM), facing the nearest mapped
 // tee. Hole numbers are not in the open data, so "nearest tee" is as precise as it gets.
 const clubStart = () => {
@@ -712,18 +719,25 @@ function setMode(m) {
   $('#hud-bar').hidden = m !== 'tour'; $('#b-tspeed').hidden = m !== 'tour'; $('#b-pause').hidden = m !== 'tour';
   $('#keys').hidden = m !== 'drive'; $('#g-gear').hidden = m !== 'drive';
   closeInfo();
-  if (m === 'drive' && !cart.userData.placed) { const [x, z, h] = clubStart(); car.x = x; car.z = z; car.h = h; car.v = 0; car.y = groundY(x, z); cart.userData.placed = true; }
-  if (m === 'tour') { $('#hud-line').innerHTML = `<b>Estate tour</b> · ${(TLEN / 1000).toFixed(1)} km loop on mapped roads`; car.air = false; }
+  if (m === 'drive' && !cart.userData.placed) { const [x, z, h] = clubStart(); const [fx, fz] = freeSpot(x, z, h); car.place(fx, fz, h); cart.userData.placed = true; }
+  if (m === 'tour') {
+    $('#hud-line').innerHTML = `<b>Estate tour</b> · ${(TLEN / 1000).toFixed(1)} km loop on the estate roads, filmed like a cart video`;
+    placeOnTour(driver.s); prevCam = camMode === 'cinema' ? prevCam : camMode; setCam('cinema');
+  } else if (prevCam && camMode === 'cinema' && m === 'drive') { setCam(prevCam); prevCam = null; }
   if (m === 'drive') refreshCart();
   if (m === 'explore') flyTo(car.x || 0, car.z || -60, cart.userData.placed ? 160 : 900);
-  if (driving) { snapCam = true; camHeading = car.h; renderer.domElement.focus(); }
+  if (driving) { snapCam = true; rig.reset(); renderer.domElement.focus(); }
   if (m === 'explore') camera.fov = 52, camera.updateProjectionMatrix();
   store.set('mode', m === 'tour' ? 'explore' : m);
 }
 document.querySelectorAll('#modes button[data-mode]').forEach(b => b.onclick = () => setMode(b.dataset.mode));
 $('#b-club').onclick = () => { const [x, z, h] = clubStart(); startDrive(x, z, h); };
-$('#b-cam').onclick = () => { camMode = camMode === 'chase' ? 'driver' : 'chase'; $('#b-cam').setAttribute('aria-pressed', camMode === 'driver'); snapCam = true; };
-$('#b-tspeed').onclick = () => { tourMult = { 1: 3, 3: 8, 8: 1 }[tourMult]; $('#b-tspeed').textContent = `Speed ${tourMult}×`; };
+let prevCam = null;
+function setCam(m) { camMode = m; store.set('cam-mode', m); $('#b-cam').textContent = CAMS[m]; rig.reset(); snapCam = true; }
+$('#b-cam').onclick = () => setCam({ chase: 'cinema', cinema: 'driver', driver: 'chase' }[camMode]);
+$('#b-cam').textContent = CAMS[camMode];
+$('#b-tspeed').onclick = () => { tourSpeed = (tourSpeed + 1) % TOUR_SPEEDS.length; $('#b-tspeed').textContent = `Cruise ${TOUR_SPEEDS[tourSpeed]} km/h`; };
+$('#b-tspeed').textContent = `Cruise ${TOUR_SPEEDS[tourSpeed]} km/h`;
 $('#b-pause').onclick = () => { tourPaused = !tourPaused; $('#b-pause').setAttribute('aria-pressed', tourPaused); $('#b-pause').textContent = tourPaused ? 'Resume' : 'Pause'; };
 
 function gearButtons(parent) {
@@ -751,6 +765,34 @@ addEventListener('keydown', e => {
   if (mode === 'drive' && ['Digit1', 'Digit2', 'Digit3'].includes(e.code)) setGear(['estate', 'sport', 'turbo'][+e.code.slice(5) - 1]);
 });
 addEventListener('keyup', e => { if (KEYMAP[e.code]) keys[KEYMAP[e.code]] = false; });
+// phone controls: a steering thumbstick on the left, pedals and drift on the right
+const touchIn = { active: false, steer: 0 };
+{
+  const stick = $('#stick'), knob = stick.querySelector('span');
+  let id = null, cx = 0;
+  stick.addEventListener('pointerdown', e => { e.preventDefault(); id = e.pointerId; cx = e.clientX; stick.setPointerCapture(e.pointerId); touchIn.active = true; });
+  stick.addEventListener('pointermove', e => { if (e.pointerId !== id) return; const d = Math.max(-46, Math.min(46, e.clientX - cx)); touchIn.steer = d / 46; knob.style.transform = `translateX(${d}px)`; });
+  const end = e => { if (e.pointerId !== id) return; id = null; touchIn.steer = 0; touchIn.active = false; knob.style.transform = ''; };
+  stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
+}
+function readInput() {
+  let throttle = (keys.up ? 1 : 0) - (keys.down ? 1 : 0), steer = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+  let handbrake = keys.brake, boost = keys.boost;
+  if (touchIn.active) steer = touchIn.steer;
+  const pads2 = navigator.getGamepads ? navigator.getGamepads() : [];
+  const gp = pads2 && [...pads2].find(g => g && g.connected);
+  if (gp) {
+    const ax = gp.axes[0] || 0; if (Math.abs(ax) > 0.12) steer = ax;
+    const rt = (gp.buttons[7] && gp.buttons[7].value) || 0, lt = (gp.buttons[6] && gp.buttons[6].value) || 0;
+    if (rt > 0.05 || lt > 0.05) throttle = rt - lt;
+    if (gp.buttons[0] && gp.buttons[0].pressed) handbrake = true;
+    if (gp.buttons[1] && gp.buttons[1].pressed) boost = true;
+    const camBtn = !!(gp.buttons[3] && gp.buttons[3].pressed);
+    if (camBtn && !readInput.cam) $('#b-cam').click();
+    readInput.cam = camBtn;
+  }
+  return { throttle, steer, handbrake, boost };
+}
 pads.querySelectorAll('button').forEach(b => {
   const k = b.dataset.k;
   const on = e => { e.preventDefault(); keys[k] = true; b.classList.add('on'); b.setPointerCapture?.(e.pointerId); };
@@ -788,7 +830,7 @@ minic.addEventListener('click', e => {
   else if (mode === 'drive') { if (hRaw(x, z) < 0.5) return toast('That spot is in the lagoon. Pick dry land.'); startDrive(x, z, car.h); }
   else {
     let best = 0, bd = Infinity; for (let s = 0; s < TLEN; s += 10) { const [px, pz] = tourAt(s), d = Math.hypot(px - x, pz - z); if (d < bd) { bd = d; best = s; } }
-    tourS = best; snapCam = true;
+    placeOnTour(best); snapCam = true;
   }
 });
 
@@ -842,7 +884,7 @@ $('#f-ex').addEventListener('input', e => {
   EX = +e.target.value; $('#f-ex-v').textContent = EX + '×';
   clearTimeout(exTimer); exTimer = setTimeout(rebuildHeights, 150);
 });
-function rebuildHeights() { updateTerrain(); buildRoads(); buildZone(); buildBuildings(); buildTrees(); buildFlags(); buildPeople(); applyWeather(); if (mode === 'drive') car.y = groundY(car.x, car.z); }
+function rebuildHeights() { updateTerrain(); buildRoads(); buildZone(); buildBuildings(); buildTrees(); buildFlags(); buildPeople(); applyWeather(); if (mode !== 'explore') car.y = groundY(car.x, car.z); }
 
 function renderPlaces() {
   const ul = $('#plist'); ul.innerHTML = '';
@@ -1014,33 +1056,91 @@ function updateSound(v, throttle) {
   audio.nf.frequency.setTargetAtTime(300 + s * 25, t, 0.2);
 }
 
+// ------------------------------------------------------------------ effects: dust and skid marks
+const dustTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32); grd.addColorStop(0, 'rgba(255,255,255,0.9)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const dust = [];
+for (let i = 0; i < 90; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dustTex, transparent: true, depthWrite: false, opacity: 0, color: 0xcbb898 })); s.visible = false; scene.add(s); dust.push({ s, life: 0, vy: 0 }); }
+let dustI = 0, dustAcc = 0;
+function emitDust(x, y, z, grassy) {
+  const d = dust[dustI = (dustI + 1) % dust.length];
+  d.s.position.set(x + (Math.random() - 0.5) * 0.4, y + 0.2, z + (Math.random() - 0.5) * 0.4); d.s.visible = true; d.life = 1; d.vy = 0.6 + Math.random() * 0.6;
+  d.s.material.color.set(grassy ? 0xa9b48a : 0xcbb898); d.s.scale.setScalar(0.6);
+}
+function updateDust(dt) {
+  for (const d of dust) if (d.life > 0) {
+    d.life -= dt * 1.1; d.s.position.y += d.vy * dt; d.s.scale.setScalar(0.6 + (1 - d.life) * 2.4);
+    d.s.material.opacity = Math.max(0, d.life) * 0.45; if (d.life <= 0) d.s.visible = false;
+  }
+}
+const SKID = 700, skidPos = new Float32Array(SKID * 6 * 3), skidGeo = new THREE.BufferGeometry();
+skidGeo.setAttribute('position', new THREE.BufferAttribute(skidPos, 3));
+const skidMesh = new THREE.Mesh(skidGeo, new THREE.MeshBasicMaterial({ color: 0x1b1b1b, transparent: true, opacity: 0.38, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+skidMesh.frustumCulled = false; scene.add(skidMesh);
+let skidI = 0; const lastMark = [null, null];
+function markSkid(k, x, z) {
+  const y = groundY(x, z) + 0.06, prev = lastMark[k];
+  lastMark[k] = [x, y, z];
+  if (!prev || Math.hypot(prev[0] - x, prev[2] - z) > 3) return;
+  const dx = x - prev[0], dz = z - prev[2], L = Math.hypot(dx, dz) || 1, nx = -dz / L * 0.12, nz = dx / L * 0.12;
+  const q = [prev[0] - nx, prev[1], prev[2] - nz, prev[0] + nx, prev[1], prev[2] + nz, x + nx, y, z + nz, prev[0] - nx, prev[1], prev[2] - nz, x + nx, y, z + nz, x - nx, y, z - nz];
+  skidPos.set(q, (skidI % SKID) * 18); skidI++;
+  skidGeo.attributes.position.needsUpdate = true; skidGeo.setDrawRange(0, Math.min(skidI, SKID) * 6);
+}
+function wheelFx(dt) {
+  const s = car.speed, fx = Math.sin(car.h), fz = -Math.cos(car.h), rx = Math.cos(car.h), rz = Math.sin(car.h);
+  const skidding = !car.air && car.slip > 2.2;
+  const dusty = !car.air && s > 4 && (!car.onRoad || car.slip > 2.2);
+  dustAcc += dt * (dusty ? Math.min(40, 6 + s * 1.2) : 0);
+  for (const k of [0, 1]) {
+    const sd = k ? 1 : -1, wx = car.x - fx * 1.25 + rx * 0.75 * sd, wz = car.z - fz * 1.25 + rz * 0.75 * sd;
+    if (skidding && car.onRoad) markSkid(k, wx, wz); else lastMark[k] = null;
+    while (dustAcc > 1) { dustAcc -= 1; emitDust(wx, car.y, wz, !car.onRoad); }
+  }
+  updateDust(dt);
+}
+
 // ------------------------------------------------------------------ build & loop
 drawGround(); updateTerrain(); buildRoads(); buildZone(); buildBuildings(); buildTrees(); buildFlags(); buildPeople(); renderPlaces(); drawMiniBase();
 atmo.setCloudsVisible(layerOn.clouds);
 setGear(gear);
 applyWeather();
 
-let last = performance.now(), nearT = 0, shake = 0, camHeading = 0;
-const camTarget = new THREE.Vector3();
+let last = performance.now(), nearT = 0, shake = 0;
 function nearPoi() {
   let best = null, bd = 160;
   for (const p of S.pois) { if (p.v === 'flagged') continue; const d = Math.hypot(p.x - car.x, p.z - car.z); if (d < bd && PRIO[p.c] >= 2) { bd = d; best = p; } }
   return best;
 }
-function vertical(dt) {
-  const g = groundY(car.x, car.z);
-  if (car.air) {
-    car.vy -= 9.81 * 1.5 * dt; car.y += car.vy * dt;
-    if (car.y <= g) { if (car.vy < -6) shake = Math.min(1, -car.vy / 14); car.y = g; car.air = false; car.vy = 0; }
+const camOpts = {
+  ground: (x, z) => H(x, z),
+  // never park the camera inside a house: pull it in along the line to the cart
+  clear(want, look) {
+    for (let k = 0.3; k <= 1.0001; k += 0.1) {
+      const px = look[0] + (want[0] - look[0]) * k, py = look[1] + (want[1] - look[1]) * k, pz = look[2] + (want[2] - look[2]) * k;
+      if (insideCollider(px, pz, py - 1)) { const t = Math.max(0.25, k - 0.12); return [look[0] + (want[0] - look[0]) * t, look[1] + (want[1] - look[1]) * t + 1.5, look[2] + (want[2] - look[2]) * t]; }
+    }
+    return want;
+  },
+  snap: false,
+};
+function driveCamera(dt) {
+  if (camMode === 'driver') {
+    const F = _F, pos = cart.position;
+    camera.position.set(pos.x, pos.y + 2.15, pos.z).addScaledVector(F, 0.15);
+    camera.lookAt(camera.position.x + F.x * 20, camera.position.y + F.y * 20 - 1, camera.position.z + F.z * 20);
+    camera.fov += (60 - camera.fov) * Math.min(1, dt * 3);
   } else {
-    const climb = (g - car.lastY) / Math.max(dt, 1e-3);
-    if (car.y + car.vy * dt > g + 0.35 && Math.abs(car.v) > 9) { car.air = true; car.y += car.vy * dt; }
-    else { car.y = g; car.vy = climb; }
+    camOpts.snap = snapCam;
+    const r = camMode === 'cinema' ? rig.cinema(car, dt, camOpts) : rig.chase(car, dt, camOpts);
+    camera.position.set(r.pos[0], r.pos[1], r.pos[2]); camera.lookAt(r.look[0], r.look[1], r.look[2]); camera.rotateZ(r.roll);
+    camera.fov = r.fov;
   }
-  car.lastY = g;
+  if (shake > 0.01) { camera.position.x += (Math.random() - 0.5) * shake * 0.4; camera.position.y += (Math.random() - 0.5) * shake * 0.3; shake *= Math.exp(-dt * 7); }
+  camera.updateProjectionMatrix(); snapCam = false;
+  controls.target.copy(cart.position);
 }
 function tick(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
   const t = now / 1000;
   if (flight) {
     const k = Math.min(1, (now - flight.t0) / 1100), e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
@@ -1048,74 +1148,35 @@ function tick(now) {
     if (k >= 1) flight = null;
   }
   let throttle = 0;
-  if (mode === 'drive') {
-    const G = GEARS[gear], vmax = G.max / 3.6 * (keys.boost ? 1.25 : 1), acc = G.acc * (keys.boost ? 1.35 : 1);
-    const v = car.v;
-    let a;
-    if (keys.up) { a = v < -0.3 ? 10 : acc * Math.max(0.12, 1 - (Math.max(0, v) / vmax) ** 2); throttle = 1; }
-    else if (keys.down) a = v > 0.3 ? -11 : -2.6 * Math.max(0, 1 + v / REVV);
-    else a = -Math.sign(v) * Math.min(Math.abs(v) / dt, 0.7 + 0.01 * v * v);
-    if (keys.brake) a = -Math.sign(v) * Math.min(Math.abs(v) / dt, 15);
-    const fx = Math.sin(car.h), fz = -Math.cos(car.h);
-    if (!car.air) {
-      const slope = (hRaw(car.x + fx * 2, car.z + fz * 2) - hRaw(car.x - fx * 2, car.z - fz * 2)) / 4;
-      a -= 9.81 * Math.max(-0.3, Math.min(0.3, slope)) * 0.5;
-      car.v = Math.max(-REVV, Math.min(Math.max(vmax, v - 8 * dt), v + a * dt));
+  if (mode === 'drive' || mode === 'tour') {
+    let inp, g = GEARS[gear];
+    if (mode === 'drive') { inp = readInput(); throttle = Math.max(0, inp.throttle); }
+    else {
+      g = GEARS.turbo;
+      inp = tourPaused ? { throttle: car.speed > 0.3 ? -1 : 0, steer: 0 } : driver.control(car, TOUR_SPEEDS[tourSpeed]);
+      throttle = Math.max(0, inp.throttle);
+      $('#hud-prog').style.width = ((((driver.s % TLEN) + TLEN) % TLEN) / TLEN * 100).toFixed(1) + '%';
     }
-    // bicycle-model steering: the lock narrows as speed rises
-    const want = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-    car.steer += (want - car.steer) * Math.min(1, dt * (want ? 5 : 8));
-    car.steerAngle = car.steer * 0.6 / (1 + Math.abs(car.v) / 10);
-    const yawRate = car.air ? 0 : car.v * Math.tan(car.steerAngle) / 2.3;
-    car.h += yawRate * dt;
-    // sub-stepped move with collision response
-    const dist = car.v * dt, steps = Math.max(1, Math.ceil(Math.abs(dist) / 0.35));
-    let hit = null, sea = false;
-    for (let s = 0; s < steps; s++) {
-      const sx = Math.sin(car.h), sz = -Math.cos(car.h), sg = Math.sign(dist) || 1;
-      const nx = car.x + sx * dist / steps, nz = car.z + sz * dist / steps;
-      if (hRaw(nx + sx * 1.6 * sg, nz + sz * 1.6 * sg) < 0.5) { sea = true; break; }
-      const px = car.x, pz = car.z;
-      car.x = nx; car.z = nz;
-      const r = resolveCart(); if (r) hit = r;
-      if (insideCollider(car.x, car.z, car.y)) { car.x = px; car.z = pz; car.v *= 0.3; break; }
-    }
-    if (sea) { car.v *= 0.2; $('#hud-near').textContent = 'That is the lagoon. Carts do not float.'; nearT = now + 2000; }
-    if (hit) {
-      const d = Math.sin(car.h) * hit.nx - Math.cos(car.h) * hit.nz, into = -d * Math.sign(car.v || 1);
-      if (into > 0) {
-        const impact = Math.abs(car.v) * into;
-        car.v *= Math.max(0, 1 - into * 1.05);                 // keep the along-wall share: slide
-        if (impact > 7) { shake = Math.min(1, impact / 20); $('#hud-near').textContent = impact > 18 ? 'Ouch. That wall is not on the tour.' : 'Scraped a wall.'; nearT = now + 1800; }
-      }
-    }
-    vertical(dt);
-    const F = orientCart(dt, a, yawRate);
-    chaseCam(F, dt);
-  } else if (mode === 'tour') {
-    if (!tourPaused) tourS += 24 / 3.6 * tourMult * dt;
-    const [x, z] = tourAt(tourS), [ax, az] = tourAt(tourS + 8);
-    let dh = Math.atan2(ax - x, -(az - z)) - car.h; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-    const yawRate = dh * Math.min(1, dt * 5) / Math.max(dt, 1e-3);
-    car.h += dh * Math.min(1, dt * 5); car.steerAngle = Math.max(-0.5, Math.min(0.5, dh * 2));
-    car.x = x; car.z = z; car.y = groundY(x, z); car.v = tourPaused ? 0 : 24 / 3.6 * tourMult; car.air = false;
-    $('#hud-prog').style.width = ((tourS % TLEN) / TLEN * 100).toFixed(1) + '%';
-    const F = orientCart(dt, 0, yawRate);
-    chaseCam(F, dt);
+    car.update(dt, inp, g);
+    if (car.waterHit) { $('#hud-near').textContent = 'That is the lagoon. Carts do not float.'; nearT = now + 2000; }
+    if (car.impact > 6) { shake = Math.min(1, car.impact / 18); $('#hud-near').textContent = car.impact > 16 ? 'Ouch. That wall is not on the tour.' : 'Scraped a wall.'; nearT = now + 1800; }
+    if (car.landed > 4) shake = Math.max(shake, Math.min(0.8, car.landed / 14));
+    orientCart(dt);
+    wheelFx(dt);
+    driveCamera(dt);
+    drawGauge(car.speed * 3.6, mode === 'tour' ? TOUR_SPEEDS[tourSpeed] : GEARS[gear].max);
+    if (now > nearT) { const p = nearPoi(); $('#hud-near').innerHTML = p ? `Passing <b>${esc(p.n)}</b>` : car.air ? '<b>Airborne!</b>' : car.slip > 3 ? '<b>Drifting</b>' : car.onRoad ? 'On the estate roads' : 'Off-road on the grass'; nearT = now + 400; }
   } else {
     controls.update();
-    if (cart.userData.placed) orientCart(dt, 0, 0);
+    if (cart.userData.placed) orientCart(dt);
+    updateDust(dt);
   }
-  if (mode !== 'explore') {
-    drawGauge(Math.abs(car.v) * 3.6, mode === 'tour' ? 24 * tourMult : GEARS[gear].max);
-    if (now > nearT) { const p = nearPoi(); $('#hud-near').innerHTML = p ? `Passing <b>${esc(p.n)}</b>` : car.air ? '<b>Airborne!</b>' : 'On the estate'; nearT = now + 400; }
-  }
-  updateSound(car.v, throttle);
+  updateSound(car.forwardSpeed, throttle);
   // shadows follow the area being looked at, from the real sun direction
   const focus = mode === 'explore' ? controls.target : cart.position;
   sun.target.position.copy(focus); sun.position.copy(focus).addScaledVector(atmo.state.sunDir, 1200);
   const camDist = camera.position.distanceTo(focus);
-  const sh = Math.max(80, Math.min(700, camDist * 0.8));
+  const sh = Math.max(60, Math.min(700, camDist * 0.8));
   if (sun.shadow.camera.right !== sh) { Object.assign(sun.shadow.camera, { left: -sh, right: sh, top: sh, bottom: -sh }); sun.shadow.camera.updateProjectionMatrix(); }
   camera.near = mode === 'explore' ? Math.max(0.5, camDist / 400) : 0.25; camera.updateProjectionMatrix();
   sky.update(camera); sea.update(t); atmo.update(dt, camera);
@@ -1127,39 +1188,6 @@ function tick(now) {
   updateLabels(); drawMini();
   requestAnimationFrame(tick);
 }
-const REVV = 12 / 3.6;
-function insideCollider(x, z, y) {
-  const l = grid.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL));
-  if (l) for (const ci of l) { const c = colliders[ci]; if (y < c.top && inPoly(x, z, c.p)) return true; }
-  return false;
-}
-function chaseCam(F, dt) {
-  const pos = cart.position, spd = Math.abs(car.v);
-  let want, look;
-  let dh = car.h - camHeading; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-  camHeading += dh * (snapCam ? 1 : Math.min(1, dt * 3.2));
-  if (camMode === 'chase') {
-    const back = 7.5 + spd * 0.13, up = 2.7 + spd * 0.03;
-    want = new THREE.Vector3(pos.x - Math.sin(camHeading) * back, pos.y + up, pos.z + Math.cos(camHeading) * back);
-    // never park the camera inside a house: pull it in along the boom
-    for (let k = 0.3; k <= 1.0001; k += 0.1) {
-      const p = pos.clone().lerp(want, k);
-      if (insideCollider(p.x, p.z, p.y - 1)) { want = pos.clone().lerp(want, Math.max(0.25, k - 0.12)); want.y += 1.5; break; }
-    }
-    want.y = Math.max(want.y, H(want.x, want.z) + 1.8);
-    look = new THREE.Vector3(pos.x + Math.sin(car.h) * 5, pos.y + 1.3, pos.z - Math.cos(car.h) * 5);
-  } else {
-    want = pos.clone().add(new THREE.Vector3(0, 2.15, 0)).addScaledVector(F, 0.15);
-    look = want.clone().addScaledVector(F, 20); look.y -= 1.0;
-  }
-  const k = snapCam ? 1 : 1 - Math.exp(-dt * (camMode === 'chase' ? 6 : 18));
-  camera.position.lerp(want, k); camTarget.lerp(look, k); if (snapCam) camTarget.copy(look);
-  if (shake > 0.01) { camera.position.x += (Math.random() - 0.5) * shake * 0.5; camera.position.y += (Math.random() - 0.5) * shake * 0.4; shake *= Math.exp(-dt * 6); }
-  camera.lookAt(camTarget); snapCam = false;
-  const fov = 55 + Math.min(25, spd * 0.5);
-  camera.fov += (fov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix();
-  controls.target.copy(pos);
-}
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); for (const p of S.pois) p.w = 0; });
 
 let startMode = store.get('mode', 'explore');
@@ -1168,5 +1196,5 @@ loading.remove();
 setMode(startMode === 'drive' ? 'explore' : startMode);
 flight = null;
 requestAnimationFrame(tick);
-window.__valriche = { setMode, startDrive, S, car, keys, scene, setGear, cartCfg, refreshCart, camera, controls, cart, H, setTime: h => { timeLive = h == null; if (h != null) timeH = h; applyWeather(); }, setWx: m => { wxMode = m; applyWeather(); }, atmo, insideCollider: (x, z) => insideCollider(x, z, -1e9), clubStart, golfers: () => golfers, kiters: () => kiters, focus: (x, y, z, dx, dy, dz) => { controls.target.set(x, y, z); camera.position.set(x + dx, y + dy, z + dz); controls.update(); } };
+window.__valriche = { setMode, startDrive, S, car, keys, scene, setGear, cartCfg, refreshCart, camera, controls, cart, H, setTime: h => { timeLive = h == null; if (h != null) timeH = h; applyWeather(); }, setWx: m => { wxMode = m; applyWeather(); }, atmo, insideCollider: (x, z) => insideCollider(x, z, -1e9), clubStart, input: readInput, golfers: () => golfers, kiters: () => kiters, focus: (x, y, z, dx, dy, dz) => { controls.target.set(x, y, z); camera.position.set(x + dx, y + dy, z + dz); controls.update(); } };
 })();

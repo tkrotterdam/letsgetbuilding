@@ -114,10 +114,14 @@ h1 { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-heig
 #pads { position: fixed; z-index: 4; inset: auto 0 0 0; pointer-events: none; display: none;
   padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(96px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   justify-content: space-between }
-#pads > div { display: flex; gap: 10px; pointer-events: auto }
+#pads > div { display: flex; gap: 10px; pointer-events: auto; align-items: center }
 #pads button { width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 85%, transparent);
   font-size: 22px; font-weight: 600; user-select: none; -webkit-user-select: none; touch-action: none }
 #pads button.on { background: var(--accent); color: var(--accent-fg) }
+#pads button.small { font-size: 13px }
+.stick { width: 150px; height: 64px; border-radius: 32px; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 70%, transparent);
+  justify-content: center; align-items: center; touch-action: none; user-select: none; -webkit-user-select: none }
+.stick span { width: 52px; height: 52px; border-radius: 50%; background: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,.25); transition: transform .05s }
 
 /* ---------- minimap ---------- */
 #mini { position: fixed; z-index: 4; right: max(16px, env(safe-area-inset-right, 0px));
@@ -155,7 +159,7 @@ h1 { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-heig
   #mini .cap span:first-child { display: none }
   #hud { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); transform: none;
     bottom: max(16px, env(safe-area-inset-bottom, 0px)); flex-wrap: wrap; gap: 10px }
-  #pads { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)) }
+  #pads { padding-bottom: calc(222px + env(safe-area-inset-bottom, 0px)) }
   #hud .bar { width: 120px } #keys { display: none }
   #info { top: auto; bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + 120px); left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto }
 }
@@ -304,7 +308,7 @@ body.placing #view canvas { cursor: crosshair }
     <span id="hud-line"><b>Cart 36</b></span>
     <span id="hud-near">On the estate roads</span>
     <div class="bar" id="hud-bar" hidden><i id="hud-prog"></i></div>
-    <span id="keys">W A S D or arrows · Shift boost · Space brake · C camera · R road · P drop · 1 2 3 gears</span>
+    <span id="keys">W A S D or arrows · Space handbrake drift · Shift boost · C camera · R road · P drop · 1 2 3 gears · gamepad works</span>
   </div>
   <div class="btns">
     <div class="gears" id="g-gear"></div>
@@ -316,8 +320,8 @@ body.placing #view canvas { cursor: crosshair }
 </div>
 
 <div id="pads" aria-hidden="true">
-  <div><button data-k="left">◀</button><button data-k="right">▶</button></div>
-  <div><button data-k="down">▼</button><button data-k="up">▲</button></div>
+  <div class="stick" id="stick" aria-label="Steer"><span></span></div>
+  <div><button data-k="brake" class="small">Drift</button><button data-k="down">▼</button><button data-k="up">▲</button></div>
 </div>
 
 <div id="mini" class="glass"><canvas id="minic" width="440" height="278" aria-label="Minimap, click to jump"></canvas>
@@ -332,4 +336,5 @@ body.placing #view canvas { cursor: crosshair }
 <script src="js/people.js"></script>
 <script src="js/villas.js"></script>
 <script src="js/cart.js"></script>
+<script src="js/vehicle.js"></script>
 <script src="js/app.js"></script>

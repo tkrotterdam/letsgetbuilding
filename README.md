@@ -9,10 +9,17 @@ An interactive 3D model of **Heritage Villas Valriche** and the wider Domaine de
 - **Villas**: 129 Valriche plots drawn in detail. Plantation-style villas have hipped roofs, shutters and verandas. Contemporary villas have flat slab roofs, full-height glazing and timber screens. 100 plots have a pool terrace with a deck, pergola, loungers and an umbrella.
 - **Your cart**: pick a race number (36 by default), paint and stickers (racing stripes, VALRICHE lettering, dodo, flames, chequered flag). The number shows on both sides, the bonnet, the roof and the plate.
 - **Drop cart**: click anywhere on land (or "Drop cart here" on any villa or place) to start driving from that spot.
-- **Drive**: the cart starts beside the Heritage Golf Club clubhouse, facing the nearest tee. Choose Estate 24, Sport 60 or Turbo 120 km/h (keys 1, 2, 3). W A S D or the arrow keys steer, Shift boosts, Space brakes, C switches camera, R returns to the nearest road and P drops the cart somewhere new. The physics use bicycle-model steering, with body pitch and roll on springs. Collisions are sub-stepped and slide along walls, so the cart can't pass through houses or pool terraces. The chase camera won't clip into buildings. There's a speedometer and optional motor sound. Phones get on-screen pedals.
+- **Drive**: the cart starts beside the Heritage Golf Club clubhouse, facing the nearest tee.
+  - **Physics** (`js/vehicle.js`): an arcade vehicle model that runs at a fixed 120 Hz, so it feels the same at any frame rate. It has momentum and tyre grip, a handbrake drift on Space, and is a little slower on grass than on the paths. It rides a smoothed surface, so tree-canopy bumps in the elevation model don't rattle it, but real crests still give airtime.
+  - **Collisions**: the cart scrapes along walls instead of stopping dead, and can't pass through houses or pool terraces.
+  - **Gears**: Estate 24, Sport 60 or Turbo 120 km/h (keys 1, 2, 3). Shift boosts.
+  - **Cameras**: chase cam (a damped spring that follows your line through drifts), cinematic or driver view. C cycles between them.
+  - **Effects**: dust off the grass and skid marks on the paths.
+  - **Controls**: gamepads work (stick, triggers, A drift, B boost, Y camera). Phones get a steering thumbstick and pedals.
+  - `node tools/test_vehicle.js` checks acceleration, top speeds, braking distance, turning circle, no wall tunnelling at 120 km/h, wall scrapes, bump handling, airtime, drift, frame-rate independence, the tour driver and the cameras.
 - **Weather & sun**: live conditions from the viewer's AccuWeather connector (cloud cover, cloud base, wind, gusts, visibility, rain) shape 3D clouds, rain, fog, the sea, swaying trees and the kites. The sun is placed with a solar-position formula for Bel Ombre at Mauritius time, with a time-of-day slider. At night, villa windows and pools light up and the cart's headlights come on. When live weather isn't available there are presets.
 - **People**: golfers in golf outfits teeing off (with ball flight), putting and walking on mapped tees and greens, with their carts; kitesurfers riding across the wind in the lagoon at the Bel Ombre kite spot, with jumps.
-- **Tour**: autopilot around a 7.5 km loop of the estate roads at 1×, 3× or 8× speed.
+- **Tour**: an AI driver takes the cart round a 7.5 km loop of the estate roads using the same physics, slowing for bends (cruise at 24, 40 or 60 km/h). A camera director cuts between chase, side-tracking, drone, roadside and front shots, like an edited cart video.
 - **Filters**: buildings by area (Valriche, Château & clubhouse, resorts, villages), by footprint source (OSM, Microsoft, Google) and by storeys. Fade everything outside Valriche. Landscape layers (satellite, golf detail, trees, pools, roads, clouds, land use, reserves). Terrain exaggeration. Places by category, fact-check status and search.
 
 ### Run it
