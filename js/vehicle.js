@@ -7,6 +7,8 @@ const VR = root.VR = root.VR || {};
 const STEP = 1 / 120;                 // fixed physics step (s)
 const WHEELBASE = 2.2, REV_MAX = 12 / 3.6, G = 9.81;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+/** steering lock (rad) available at a given speed: wide when parked, narrow at speed */
+const steerLock = sp => 0.62 / (1 + Math.max(0, sp - 3) / 9);
 const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
 
 /**
@@ -25,6 +27,7 @@ class Vehicle {
     this.air = false; this.steer = 0; this.steerAngle = 0; this.yawRate = 0;
     this.accel = 0; this.slip = 0; this.onRoad = true; this.impact = 0; this.landed = 0; this.waterHit = false;
     this.acc = 0;   // fixed-step accumulator
+    this.feel = 1;  // steering feel: how quickly the wheel responds (0.6 relaxed, 1 normal, 1.5 sharp)
   }
   place(x, z, h) {
     this.x = x; this.z = z; this.h = h; this.vx = this.vz = this.vy = 0;
@@ -70,13 +73,19 @@ class Vehicle {
     }
     this.accel = a;
     this.slip = Math.abs(vR);
-    // steering: smooth, self-centring, lock narrows with speed (more lock on the handbrake)
-    const target = clamp(inp.steer, -1, 1);
-    const rate = target === 0 ? 7 : (Math.sign(target) !== Math.sign(this.steer) ? 9 : 4.5);
+    // steering. The wheel builds up slowly at speed and recentres gently, the lock narrows with speed,
+    // and the turn rate is capped by how much sideways acceleration the tyres can give (so a flick of
+    // the keys at 60 km/h nudges the cart instead of snapping it round). The handbrake lifts the cap.
+    const sp = Math.abs(vF), target = clamp(inp.steer, -1, 1);
+    const build = 3.2 * this.feel / (1 + sp / 8);                       // wheel speed, 1/s: ~3 parked, ~1 at 60 km/h
+    const rate = target === 0 ? 5 / (1 + sp / 30) : (Math.sign(target) !== Math.sign(this.steer) && this.steer !== 0 ? build * 1.6 : build);
     this.steer += clamp(target - this.steer, -rate * dt, rate * dt);
-    const lock = 0.62 / (1 + Math.max(0, Math.abs(vF) - 3) / 9) * (inp.handbrake ? 1.5 : 1);
+    const lock = steerLock(sp) * (inp.handbrake ? 1.5 : 1);
     this.steerAngle = this.steer * lock;
-    this.yawRate = this.air ? this.yawRate * 0.98 : vF * Math.tan(this.steerAngle) / WHEELBASE;
+    const aLat = inp.handbrake ? 13 : (this.onRoad ? 7 : 5.5);          // m/s^2
+    const yawMax = aLat / Math.max(sp, 3.5);
+    const yawWant = this.air ? this.yawRate * 0.98 : clamp(vF * Math.tan(this.steerAngle) / WHEELBASE, -yawMax, yawMax);
+    this.yawRate += (yawWant - this.yawRate) * Math.min(1, dt * 9);      // a little yaw inertia
     this.h = wrap(this.h + this.yawRate * dt);
     if (!this.air) { this.vx = fx * vF + rx * vR; this.vz = fz * vF + rz * vR; }
     const nfx = Math.sin(this.h), nfz = -Math.cos(this.h);
@@ -164,26 +173,37 @@ class Driver {
   }
   control(v, cruiseKmh) {
     this.track(v.x, v.z);
-    const look = clamp(4 + v.speed * 0.9, 5, 22);
-    const [tx, tz] = this.at(this.s + look);
-    const want = Math.atan2(tx - v.x, -(tz - v.z));
-    const err = wrap(want - v.h);
-    // curvature ahead -> target speed
-    let bend = 0;
-    for (let d = 10; d <= 40; d += 10) {
-      const [ax, az] = this.at(this.s + d - 5), [bx, bz] = this.at(this.s + d + 5);
-      const [cx, cz] = this.at(this.s + d - 15);
-      bend = Math.max(bend, Math.abs(wrap(Math.atan2(bx - ax, -(bz - az)) - Math.atan2(ax - cx, -(az - cz)))));
+    // pure pursuit: the steering angle that arcs the cart onto a point `ld` metres up the route,
+    // converted to wheel input using the cart's real steering lock at this speed
+    const ld = clamp(5 + 0.9 * Math.max(v.forwardSpeed, 0), 6, 22);
+    const [tx, tz] = this.at(this.s + ld);
+    const err = wrap(Math.atan2(tx - v.x, -(tz - v.z)) - v.h);
+    const delta = Math.atan(2 * WHEELBASE * Math.sin(err) / Math.max(Math.hypot(tx - v.x, tz - v.z), 3));
+    // Speed planner: for each point ahead, the comfortable cornering speed there is sqrt(aLat / curvature);
+    // to be at that speed on arrival we must be no faster than sqrt(vCorner^2 + 2 * brake * distance) now.
+    const A_COMFORT = Driver.tune.aComfort, A_BRAKE = Driver.tune.aBrake;
+    let target = cruiseKmh / 3.6;
+    for (let d = 2; d <= 64; d += 2) {
+      const [ax, az] = this.at(this.s + d - 4), [bx, bz] = this.at(this.s + d), [cx, cz] = this.at(this.s + d + 4);
+      const k = Math.abs(wrap(Math.atan2(cx - bx, -(cz - bz)) - Math.atan2(bx - ax, -(bz - az)))) / 4;
+      const vc = Math.sqrt(A_COMFORT / Math.max(k, 1e-3));
+      target = Math.min(target, Math.sqrt(vc * vc + 2 * A_BRAKE * d));
     }
-    const target = cruiseKmh / 3.6 * clamp(1 - bend * 1.4, 0.35, 1);
+    // ...and never go faster than the tyres allow for the curve the wheel is asking for right now,
+    // so the cart doesn't speed up while it is still hauling itself back onto the line
+    const demand = Math.abs(2 * Math.sin(err) / Math.max(Math.hypot(tx - v.x, tz - v.z), 3));
+    target = Math.min(target, Math.sqrt(A_COMFORT * Driver.tune.demandSlack / Math.max(demand, 1e-3)));
+    target = Math.max(target, 3.5);
+    this.lastTarget = target; this.lastErr = err;   // kept for diagnostics
     const vF = v.forwardSpeed;
     return {
-      steer: clamp(err * 2.2, -1, 1),
-      throttle: vF < target - 0.3 ? clamp((target - vF) * 0.6, 0.15, 1) : (vF > target + 1 ? -0.4 : 0),
+      steer: clamp(delta / steerLock(Math.abs(v.forwardSpeed)), -1, 1),
+      throttle: vF < target - 0.3 ? clamp((target - vF) * 0.6, 0.15, 1) : (vF > target + 0.4 ? -clamp((vF - target) * Driver.tune.brakeGain, 0.25, 0.8) : 0),
       handbrake: false, boost: false,
     };
   }
 }
+Driver.tune = { aComfort: 3.2, aBrake: 2.6, brakeGain: 0.35, demandSlack: 1.3 };
 VR.Driver = Driver;
 
 /**
@@ -249,4 +269,5 @@ class CameraRig {
 }
 VR.CameraRig = CameraRig;
 VR.VEHICLE_STEP = STEP;
+VR.steerLock = steerLock;
 })(typeof window !== 'undefined' ? window : globalThis);

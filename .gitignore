@@ -1,3 +1,7 @@
 __pycache__/
 RAW/
 *.tif
+dist/
+node_modules/
+.wrangler/
+.dev.vars*

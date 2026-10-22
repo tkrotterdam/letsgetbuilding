@@ -82,6 +82,41 @@ const kmh = v => v.speed * 3.6;
   for (let t = 0; t < 90; t += 1 / 60) { v.update(1 / 60, drv.control(v, 24), ESTATE); if (t > 3) worst = Math.max(worst, drv.track(v.x, v.z)); }
   check('tour driver stays on the path (< 3 m off)', worst < 3, `worst ${worst.toFixed(2)} m, covered ${drv.s.toFixed(0)} m`); }
 
+// 12b steering smoothness at speed: peak turn rate and how quickly the wheel reaches lock
+{ const v = new Vehicle(envOf()); v.place(0, 0, 0); run(v, 12, { throttle: 1, steer: 0 }, SPORT);
+  const s0 = kmh(v); let peakYaw = 0, tLock = null, peakLat = 0;
+  run(v, 3, { throttle: 0.5, steer: 1 }, SPORT, 120, (v, t) => { peakYaw = Math.max(peakYaw, Math.abs(v.yawRate)); peakLat = Math.max(peakLat, Math.abs(v.yawRate * v.speed)); if (tLock == null && v.steer > 0.95) tLock = t; });
+  console.log(`      at ${s0.toFixed(0)} km/h, full lock: peak turn rate ${peakYaw.toFixed(2)} rad/s (${(peakYaw * 57.3).toFixed(0)} deg/s), lateral accel ${peakLat.toFixed(1)} m/s2, wheel reaches lock in ${tLock && tLock.toFixed(2)} s`);
+  check('at 60 km/h full lock turns no faster than 35 deg/s', peakYaw < 0.61, `${(peakYaw * 57.3).toFixed(0)} deg/s`);
+  check('at 60 km/h lateral acceleration stays under 8 m/s2 (no snap-turns)', peakLat < 8, `${peakLat.toFixed(1)} m/s2`);
+  check('wheel takes at least 0.35 s to reach full lock', tLock != null && tLock >= 0.35, `${tLock && tLock.toFixed(2)} s`); }
+// 12b2 steering feel setting: relaxed is slower to reach lock than normal, sharp is quicker
+{ const lockTime = feel => { const v = new Vehicle(envOf()); v.feel = feel; v.place(0, 0, 0); run(v, 12, { throttle: 1, steer: 0 }, SPORT);
+    let tl = null; run(v, 3, { throttle: 0.5, steer: 1 }, SPORT, 120, (v, t) => { if (tl == null && v.steer > 0.95) tl = t; }); return tl; };
+  const [r, n, s] = [0.6, 1, 1.5].map(lockTime);
+  check('steering feel: relaxed > normal > sharp time to full lock', r > n && n > s, `relaxed ${r.toFixed(2)} s, normal ${n.toFixed(2)} s, sharp ${s.toFixed(2)} s`); }
+// 12c a quick left-right flick must not whip the cart around
+{ const v = new Vehicle(envOf()); v.place(0, 0, 0); run(v, 12, { throttle: 1, steer: 0 }, SPORT);
+  const h0 = v.h; let maxDev = 0;
+  for (let t = 0; t < 0.5; t += 1 / 60) { v.update(1 / 60, { throttle: 1, steer: t < 0.25 ? 1 : -1 }, SPORT); maxDev = Math.max(maxDev, Math.abs(v.h - h0)); }
+  check('a 0.25 s left / 0.25 s right flick at 60 km/h changes heading under 6 deg', maxDev < 0.105, `${(maxDev * 57.3).toFixed(1)} deg`); }
+
+// 12d the AI tour driver on the real estate loop (data/scene.json) at each cruise speed
+{ const scene = JSON.parse(require('fs').readFileSync(__dirname + '/../data/scene.json', 'utf8'));
+  for (const cruise of [24, 40, 60]) {
+    const v = new Vehicle(envOf()), drv = new Driver(scene.tour);
+    const [x0, z0] = drv.at(0), [x1, z1] = drv.at(5); v.place(x0, z0, Math.atan2(x1 - x0, -(z1 - z0))); drv.s = 0;
+    let worst = 0, vmax = 0, prog = 0, secs = 0, lat = 0, latSum = 0, latN = 0;
+    for (let t = 0; t < 1800 && prog < drv.len; t += 1 / 60) {
+      v.update(1 / 60, drv.control(v, cruise), TURBO);
+      const off = drv.track(v.x, v.z); if (t > 4) worst = Math.max(worst, off);
+      prog = Math.max(prog, drv.s); vmax = Math.max(vmax, kmh(v)); secs = t;
+      const al = Math.abs(v.yawRate * v.speed); if (t > 4) { lat = Math.max(lat, al); latSum += al; latN++; }
+    }
+    check(`tour driver at ${cruise} km/h completes the ${(drv.len / 1000).toFixed(1)} km loop within 4 m of the road`, prog >= drv.len * 0.98 && worst < 4, `worst ${worst.toFixed(2)} m off, peak ${vmax.toFixed(0)} km/h, lap in ${(secs / 60).toFixed(1)} min`);
+    check(`  ...and passengers stay comfortable at ${cruise} km/h (sideways accel under 5 m/s2)`, lat < 5, `peak ${lat.toFixed(1)}, average ${(latSum / latN).toFixed(2)} m/s2`);
+  } }
+
 // 13 chase camera stays behind at a sensible distance, never NaN; cinematic cuts through all shots
 { const { CameraRig } = globalThis.VR;
   const v = new Vehicle(envOf()); v.place(0, 0, 0); const rig = new CameraRig(); const opts = { ground: () => 0 };

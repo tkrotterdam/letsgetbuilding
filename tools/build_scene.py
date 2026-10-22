@@ -235,6 +235,56 @@ wp = [snap(*q) for q in WAY]
 for a, b in zip(wp, wp[1:]):
     path = nx.shortest_path(G, a, b, weight='weight')
     tour += [list(map(float, q)) for q in (path if not tour else path[1:])]
+
+
+def erase_spurs(pts):
+    """Drop out-and-back excursions (A -> B -> A): waypoints that snapped onto a dead-end side road
+    would otherwise send the cart down it and force a 180 degree turn."""
+    out = []
+    for p in pts:
+        if len(out) >= 2 and math.dist(p, out[-2]) < 0.5:
+            out.pop()                       # p retraces the previous step: remove the spur tip
+        else:
+            out.append(p)
+    # a closed loop can also retrace itself across its start point
+    while len(out) > 4 and math.dist(out[0], out[-1]) < 0.5 and math.dist(out[1], out[-2]) < 0.5:
+        out = out[1:-1] + [out[1]]
+    return out
+
+
+def round_corners(pts, fillet=6.0, step=1.5):
+    """Replace each sharp vertex with a quadratic arc so the route is drivable at speed. The arc
+    starts at most `fillet` m before the vertex (and at most 40% of the neighbouring segment), so
+    it never strays more than ~2 m from the mapped road centreline."""
+    closed = math.dist(pts[0], pts[-1]) < 0.5
+    P = pts[:-1] if closed else pts
+    n = len(P)
+    out = []
+    for i in range(n):
+        if not closed and i in (0, n - 1):
+            out.append(P[i]); continue
+        a, b, c = P[i - 1], P[i], P[(i + 1) % n]
+        l1, l2 = math.dist(a, b), math.dist(b, c)
+        if l1 < 1e-6 or l2 < 1e-6:
+            continue
+        d = min(fillet, 0.4 * l1, 0.4 * l2)
+        u1 = ((a[0] - b[0]) / l1, (a[1] - b[1]) / l1); u2 = ((c[0] - b[0]) / l2, (c[1] - b[1]) / l2)
+        cosang = max(-1, min(1, u1[0] * u2[0] + u1[1] * u2[1]))
+        if cosang < -0.995:                 # essentially straight: keep the vertex
+            out.append(b); continue
+        p0 = (b[0] + u1[0] * d, b[1] + u1[1] * d); p2 = (b[0] + u2[0] * d, b[1] + u2[1] * d)
+        k = max(2, int(2 * d / step))
+        for j in range(k + 1):
+            t = j / k
+            out.append((round((1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * b[0] + t * t * p2[0], 2),
+                        round((1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * b[1] + t * t * p2[1], 2)))
+    if closed:
+        out.append(out[0])
+    return out
+
+
+tour_raw = len(tour)
+tour = [list(p) for p in round_corners(erase_spurs([tuple(p) for p in tour]))]
 tour_len = sum(math.dist(a, b) for a, b in zip(tour, tour[1:]))
 
 
@@ -509,6 +559,6 @@ json.dump(scene, open(OUT, 'w'), separators=(',', ':'))
 from collections import Counter
 print('dem', w, h, 'buildings', len(buildings), Counter(b['c'] for b in buildings),
       'roads', len(roads), 'landuse', len(landuse), 'water', len(water), 'land', len(land), 'pois', len(pois),
-      Counter(p['v'] for p in pois), 'tour pts', len(tour), 'tour m', round(tour_len))
+      Counter(p['v'] for p in pois), 'tour pts', len(tour), '(raw', tour_raw, ') tour m', round(tour_len))
 print('villas', len(villas), 'with pool', sum('pool' in v for v in villas), Counter(v['st'] for v in villas),
       'trees', len(trees) // 3, Counter(t // 100 for t in trees[2::3]), 'sat', SAT_W, SAT_H)

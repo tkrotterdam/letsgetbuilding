@@ -688,7 +688,7 @@ function startDrive(x, z, h) {
 const T = S.tour, driver = new VR.Driver(T), TLEN = driver.len;
 const tourAt = s => driver.at(s);
 const TOUR_SPEEDS = [24, 40, 60];
-let tourSpeed = 0, tourPaused = false;
+let tourSpeed = store.get('tour-speed', 1), tourPaused = false;
 function placeOnTour(s) {
   driver.s = s; const [x, z] = driver.at(s), [x2, z2] = driver.at(s + 5);
   car.place(x, z, Math.atan2(x2 - x, -(z2 - z))); rig.reset(); cart.userData.placed = true;
@@ -736,7 +736,7 @@ let prevCam = null;
 function setCam(m) { camMode = m; store.set('cam-mode', m); $('#b-cam').textContent = CAMS[m]; rig.reset(); snapCam = true; }
 $('#b-cam').onclick = () => setCam({ chase: 'cinema', cinema: 'driver', driver: 'chase' }[camMode]);
 $('#b-cam').textContent = CAMS[camMode];
-$('#b-tspeed').onclick = () => { tourSpeed = (tourSpeed + 1) % TOUR_SPEEDS.length; $('#b-tspeed').textContent = `Cruise ${TOUR_SPEEDS[tourSpeed]} km/h`; };
+$('#b-tspeed').onclick = () => { tourSpeed = (tourSpeed + 1) % TOUR_SPEEDS.length; store.set('tour-speed', tourSpeed); $('#b-tspeed').textContent = `Cruise ${TOUR_SPEEDS[tourSpeed]} km/h`; };
 $('#b-tspeed').textContent = `Cruise ${TOUR_SPEEDS[tourSpeed]} km/h`;
 $('#b-pause').onclick = () => { tourPaused = !tourPaused; $('#b-pause').setAttribute('aria-pressed', tourPaused); $('#b-pause').textContent = tourPaused ? 'Resume' : 'Pause'; };
 
@@ -753,6 +753,9 @@ function setGear(id) {
   refreshCart();
 }
 gearButtons($('#g-gear')); gearButtons($('#g-gear-panel'));
+const FEELS = { relaxed: 0.6, normal: 1, sharp: 1.5 };
+let feel = store.get('feel', 'normal'); if (!FEELS[feel]) feel = 'normal';
+car.feel = FEELS[feel];
 
 const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'brake', ShiftLeft: 'boost', ShiftRight: 'boost' };
 addEventListener('keydown', e => {
@@ -778,11 +781,12 @@ const touchIn = { active: false, steer: 0 };
 function readInput() {
   let throttle = (keys.up ? 1 : 0) - (keys.down ? 1 : 0), steer = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
   let handbrake = keys.brake, boost = keys.boost;
-  if (touchIn.active) steer = touchIn.steer;
+  const curve = x => Math.sign(x) * Math.abs(x) ** 1.6;
+  if (touchIn.active) steer = curve(touchIn.steer);
   const pads2 = navigator.getGamepads ? navigator.getGamepads() : [];
   const gp = pads2 && [...pads2].find(g => g && g.connected);
   if (gp) {
-    const ax = gp.axes[0] || 0; if (Math.abs(ax) > 0.12) steer = ax;
+    const ax = gp.axes[0] || 0; if (Math.abs(ax) > 0.12) steer = curve((Math.abs(ax) - 0.12) / 0.88 * Math.sign(ax));
     const rt = (gp.buttons[7] && gp.buttons[7].value) || 0, lt = (gp.buttons[6] && gp.buttons[6].value) || 0;
     if (rt > 0.05 || lt > 0.05) throttle = rt - lt;
     if (gp.buttons[0] && gp.buttons[0].pressed) handbrake = true;
@@ -864,6 +868,7 @@ function chipGroup(parent, items, isOn, toggle) {
 chipGroup($('#g-floor'), [{ id: 'all', label: 'All' }, { id: '1', label: 'Single storey' }, { id: '2', label: 'Two or more' }], id => floorSel === id, id => { floorSel = id; applyBuildingFilters(); });
 chipGroup($('#g-pcat'), PCATS, id => pcatOn[id], id => { pcatOn[id] = !pcatOn[id]; renderPlaces(); });
 chipGroup($('#g-pv'), PV.map(v => ({ ...v, dot: 'v-' + v.id })), id => pvOn[id], id => { pvOn[id] = !pvOn[id]; renderPlaces(); });
+chipGroup($('#g-feel'), [{ id: 'relaxed', label: 'Relaxed' }, { id: 'normal', label: 'Normal' }, { id: 'sharp', label: 'Sharp' }], id => feel === id, id => { feel = id; car.feel = FEELS[id]; store.set('feel', id); });
 chipGroup($('#g-stick'), VR.STICKERS, id => !!cartCfg.st[id], id => { cartCfg.st = { ...cartCfg.st, [id]: !cartCfg.st[id] }; refreshCart(); });
 for (const p of VR.PAINTS) {
   const b = document.createElement('button'); b.type = 'button'; b.style.background = p.hex; b.title = p.label; b.setAttribute('aria-label', p.label);
@@ -931,6 +936,7 @@ $('#sources').innerHTML = [
   ['Terrain', `${M.dem}, 30 m grid. © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the EU and ESA.`, 'https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model'],
 ].map(([h, t, u]) => `<li><span class="dot" style="background:var(--accent)"></span><span><b>${h}.</b> ${t}<small><a href="${u}" target="_blank" rel="noopener">${u.replace('https://', '')}</a></small></span></li>`).join('');
 $('#limits').innerHTML = [
+  'This is an unofficial model. It is not made, endorsed or checked by Heritage Resorts, Heritage Villas Valriche or any property agent.',
   'Villa facades, roof styles and pools are modelled from published descriptions. Shapes and positions are real footprints, but no villa is a survey of the real house.',
   'Sentinel-2 imagery is 10 m per pixel: it shows the golf course, lagoon and reef faithfully, but not individual villas or pools.',
   'The estate boundary is not open data. The orange outline is traced around the villa clusters.',

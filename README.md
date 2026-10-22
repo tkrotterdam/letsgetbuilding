@@ -12,6 +12,7 @@ An interactive 3D model of **Heritage Villas Valriche** and the wider Domaine de
 - **Drive**: the cart starts beside the Heritage Golf Club clubhouse, facing the nearest tee.
   - **Physics** (`js/vehicle.js`): an arcade vehicle model that runs at a fixed 120 Hz, so it feels the same at any frame rate. It has momentum and tyre grip, a handbrake drift on Space, and is a little slower on grass than on the paths. It rides a smoothed surface, so tree-canopy bumps in the elevation model don't rattle it, but real crests still give airtime.
   - **Collisions**: the cart scrapes along walls instead of stopping dead, and can't pass through houses or pool terraces.
+  - **Steering feel**: Relaxed, Normal or Sharp (Cart tab). At speed the turn rate is capped by how much sideways grip the tyres have (about 26°/s at 60 km/h), the wheel builds up slowly, and gamepad and thumbstick input has a response curve so small movements stay small.
   - **Gears**: Estate 24, Sport 60 or Turbo 120 km/h (keys 1, 2, 3). Shift boosts.
   - **Cameras**: chase cam (a damped spring that follows your line through drifts), cinematic or driver view. C cycles between them.
   - **Effects**: dust off the grass and skid marks on the paths.
@@ -19,7 +20,7 @@ An interactive 3D model of **Heritage Villas Valriche** and the wider Domaine de
   - `node tools/test_vehicle.js` checks acceleration, top speeds, braking distance, turning circle, no wall tunnelling at 120 km/h, wall scrapes, bump handling, airtime, drift, frame-rate independence, the tour driver and the cameras.
 - **Weather & sun**: live conditions from the viewer's AccuWeather connector (cloud cover, cloud base, wind, gusts, visibility, rain) shape 3D clouds, rain, fog, the sea, swaying trees and the kites. The sun is placed with a solar-position formula for Bel Ombre at Mauritius time, with a time-of-day slider. At night, villa windows and pools light up and the cart's headlights come on. When live weather isn't available there are presets.
 - **People**: golfers in golf outfits teeing off (with ball flight), putting and walking on mapped tees and greens, with their carts; kitesurfers riding across the wind in the lagoon at the Bel Ombre kite spot, with jumps.
-- **Tour**: an AI driver takes the cart round a 7.5 km loop of the estate roads using the same physics, slowing for bends (cruise at 24, 40 or 60 km/h). A camera director cuts between chase, side-tracking, drone, roadside and front shots, like an edited cart video.
+- **Tour**: an AI driver takes the cart round a 5.6 km loop of the estate roads using the same physics. It looks ahead along the route and brakes early for bends, so passengers never feel more than about 4 m/s² sideways. Cruise at 24, 40 (default) or 60 km/h: a lap takes about 15, 9 or 7 minutes. Dead-end detours were removed from the route and its corners are rounded so a cart can really drive it. A camera director cuts between chase, side-tracking, drone, roadside and front shots, like an edited cart video.
 - **Filters**: buildings by area (Valriche, Château & clubhouse, resorts, villages), by footprint source (OSM, Microsoft, Google) and by storeys. Fade everything outside Valriche. Landscape layers (satellite, golf detail, trees, pools, roads, clouds, land use, reserves). Terrain exaggeration. Places by category, fact-check status and search.
 
 ### Run it
@@ -30,6 +31,31 @@ python3 -m http.server 8000
 ```
 
 three.js r128 loads from jsDelivr. Everything else is in this repo.
+
+### Put it online with Cloudflare
+
+This is a static site: no server and no build tools beyond copying files. Cloudflare recommends Workers Static Assets for new static sites (Pages still works).
+
+`npm run build` copies the 10 files the site needs (3.3 MiB) into `dist/`, leaving the Python tools and tests out. `wrangler.jsonc` points Cloudflare at that folder.
+
+**Option A: connect GitHub (deploys on every push)**
+1. In the Cloudflare dashboard go to **Workers & Pages → Create → Import a repository** and pick this repo.
+2. Set the **build command** to `npm run build` and leave the **deploy command** as `npx wrangler deploy`.
+3. Set the production branch (merge the PR into `main` first). The site goes live at `https://valriche-estate-3d.<your-subdomain>.workers.dev`.
+
+**Option B: from your computer**
+```sh
+npm run build
+npx wrangler login      # once
+npx wrangler deploy
+```
+
+**Then, optionally**
+- A custom domain: Worker → Settings → Domains & Routes → Add → Custom domain.
+- Keep it private: Worker → **Access** tab → *Protect this Worker behind Access*, then allow only chosen emails or an email domain (Cloudflare Zero Trust, free for small teams).
+
+**What changes outside Claude:** the Weather tab's live feed uses the viewer's AccuWeather connector, which only exists when the page is opened inside Claude. On a normal website it falls back to the preset weather and says so. A free browser-side source such as Open-Meteo could replace it (check its terms if the site is commercial).
+
 
 ### Data
 
@@ -62,6 +88,7 @@ Each place pin in `tools/build_scene.py` (`POI_CHECK`) has a status of verified,
 
 ### Limits
 
+- This is an unofficial model, not made or endorsed by Heritage Resorts, Heritage Villas Valriche or any property agent.
 - The estate boundary is not open data. The orange outline is traced around the villa clusters.
 - Heights are estimated: villas have 1–2 storeys, per sales listings.
 - Villa facades, roof styles and pools are modelled from published descriptions: over 30 plantation-style designs, a contemporary collection by Greg Scott + Partners, and a private pool for every villa. Pool positions aren't published, so each pool sits on the downhill side of its house.

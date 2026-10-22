@@ -1,0 +1,8 @@
+{
+  // Static site on Cloudflare Workers (Static Assets). No Worker script is needed.
+  "name": "valriche-estate-3d",
+  "compatibility_date": "2026-10-13",
+  "assets": {
+    "directory": "./dist"
+  }
+}
