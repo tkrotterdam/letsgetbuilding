@@ -162,6 +162,11 @@ h1 { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-heig
 @media (prefers-reduced-motion: reduce) { #panel { transition: none } }
 
 /* ---------- v2 additions ---------- */
+#gauge { width: 96px; height: 87px; color: var(--fg); flex: none }
+.wx-read { display: flex; flex-wrap: wrap; gap: 6px }
+.wx-read span { background: var(--bg-2); border-radius: 8px; padding: 6px 9px; font-size: 12px }
+.wx-read b { font-family: var(--f-mono); font-size: 15px }
+.tabs button { font-size: 13px; padding-inline: 2px }
 #modes button.drop[aria-pressed="true"] { background: var(--cane); color: #1d1a12 }
 #placeHint { position: fixed; z-index: 8; left: 50%; transform: translateX(-50%); top: calc(max(16px, env(safe-area-inset-top, 0px)) + 64px);
   padding: 10px 16px; font-weight: 600; display: flex; gap: 12px; align-items: center }
@@ -185,7 +190,9 @@ body.placing #view canvas { cursor: crosshair }
   padding: 8px 14px; font-weight: 600; font-size: 13px }
 @media (min-width: 761px) {
   #hud { left: calc(max(16px, env(safe-area-inset-left, 0px)) + 356px); right: calc(max(16px, env(safe-area-inset-right, 0px)) + 250px);
-    transform: none; justify-content: space-between; flex-wrap: wrap }
+    transform: none; justify-content: space-between; flex-wrap: nowrap; padding: 6px 12px }
+  #hud .meta { flex: 1 1 auto }
+  #hud .btns { flex-wrap: wrap; justify-content: flex-end; max-width: 46% }
   #placeHint { left: calc(50% + 178px) }
 }
 @media (max-width: 760px) { #modes button { padding: 8px 9px; font-size: 13px } #placeHint { top: calc(max(16px, env(safe-area-inset-top, 0px)) + 150px); width: calc(100vw - 32px); justify-content: space-between } .gears button { padding: 6px 7px } }
@@ -205,7 +212,8 @@ body.placing #view canvas { cursor: crosshair }
   </header>
   <div class="tabs" role="tablist">
     <button role="tab" aria-selected="true" data-tab="filters" id="tab-filters">Filters</button>
-    <button role="tab" aria-selected="false" data-tab="cart" id="tab-cart">Your cart</button>
+    <button role="tab" aria-selected="false" data-tab="cart" id="tab-cart">Cart</button>
+    <button role="tab" aria-selected="false" data-tab="weather" id="tab-weather">Weather</button>
     <button role="tab" aria-selected="false" data-tab="places" id="tab-places">Places</button>
     <button role="tab" aria-selected="false" data-tab="facts" id="tab-facts">Sources</button>
   </div>
@@ -249,6 +257,23 @@ body.placing #view canvas { cursor: crosshair }
     </div>
   </div>
 
+  <div class="tabpane" data-pane="weather" hidden>
+    <div class="group">
+      <h2>Conditions</h2>
+      <div class="wx-read" id="wx-read"></div>
+      <p class="note" id="wx-status">Asking AccuWeather for the current conditions…</p>
+      <button class="btn-primary" id="wx-allow" hidden>Allow live weather</button>
+    </div>
+    <div class="group"><h2>Weather</h2><div class="chips" id="g-wx"></div>
+      <p class="note">Live uses your AccuWeather connector: cloud cover, cloud base, wind, gusts, visibility and rain shape the sky, the sea, the trees and the kites.</p></div>
+    <div class="group">
+      <h2>Time of day</h2>
+      <div class="range"><input type="range" id="wx-time" min="0" max="24" step="0.25" aria-label="Time of day"><button class="chip" id="wx-now" aria-pressed="true">Now</button></div>
+      <p class="note" id="wx-clock"></p>
+      <p class="note">The sun is placed with a solar-position formula for Bel Ombre (20.5°S). At night villa windows and pools light up and the cart switches its headlights on.</p>
+    </div>
+  </div>
+
   <div class="tabpane" data-pane="places" hidden>
     <input id="search" type="search" placeholder="Search places, e.g. Château" aria-label="Search places">
     <div class="group"><h2>Category</h2><div class="chips" id="g-pcat"></div></div>
@@ -274,16 +299,17 @@ body.placing #view canvas { cursor: crosshair }
 <div id="toast" class="glass" hidden></div>
 
 <div id="hud" class="glass" hidden>
-  <div class="speed"><span id="spd">0</span> <small>km/h</small></div>
+  <canvas id="gauge" width="220" height="200" aria-label="Speedometer"></canvas>
   <div class="meta">
     <span id="hud-line"><b>Cart 36</b></span>
     <span id="hud-near">On the estate roads</span>
     <div class="bar" id="hud-bar" hidden><i id="hud-prog"></i></div>
-    <span id="keys">W A S D or arrows · Shift boost · Space brake · C camera · R road · P drop</span>
+    <span id="keys">W A S D or arrows · Shift boost · Space brake · C camera · R road · P drop · 1 2 3 gears</span>
   </div>
   <div class="btns">
     <div class="gears" id="g-gear"></div>
     <button id="b-cam" aria-pressed="false">Driver view</button>
+    <button id="b-sound" aria-pressed="false">Sound</button>
     <button id="b-tspeed" hidden>Speed 1×</button>
     <button id="b-pause" hidden aria-pressed="false">Pause</button>
   </div>
@@ -302,6 +328,8 @@ body.placing #view canvas { cursor: crosshair }
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="js/world.js"></script>
+<script src="js/weather.js"></script>
+<script src="js/people.js"></script>
 <script src="js/villas.js"></script>
 <script src="js/cart.js"></script>
 <script src="js/app.js"></script>

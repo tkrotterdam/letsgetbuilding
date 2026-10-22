@@ -9,17 +9,17 @@ VR.createSky = function (scene, sunDir) {
     side: THREE.BackSide, depthWrite: false, fog: false,
     uniforms: {
       top: { value: new THREE.Color('#2c78c9') }, horizon: { value: new THREE.Color('#cfe7f1') },
-      sunDir: { value: sunDir.clone().normalize() },
+      sunDir: { value: sunDir.clone().normalize() }, sunStrength: { value: 1 },
     },
     vertexShader: `varying vec3 vDir;
       void main(){ vDir = normalize(position); vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }`,
-    fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; varying vec3 vDir;
+    fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; uniform float sunStrength; varying vec3 vDir;
       void main(){
         vec3 d = normalize(vDir); float h = max(d.y, 0.0);
         vec3 c = mix(horizon, top, pow(h, 0.5));
         float s = max(dot(d, sunDir), 0.0);
-        c += vec3(1.0, 0.96, 0.85) * (pow(s, 900.0) * 3.0 + pow(s, 14.0) * 0.22);
-        if (d.y < 0.0) c = mix(horizon, vec3(0.42, 0.62, 0.72), min(-d.y * 6.0, 1.0));
+        c += vec3(1.0, 0.96, 0.85) * (pow(s, 900.0) * 3.0 + pow(s, 14.0) * 0.22) * sunStrength;
+        if (d.y < 0.0) c = mix(horizon, horizon * 0.6, min(-d.y * 6.0, 1.0));
         gl_FragColor = vec4(c, 1.0);
       }`,
   });
@@ -70,7 +70,7 @@ VR.createSea = function (scene, ext, sunDir) {
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
-      time: { value: 0 }, sunDir: { value: sunDir.clone().normalize() },
+      time: { value: 0 }, sunDir: { value: sunDir.clone().normalize() }, light: { value: 1 },
       ext: { value: new THREE.Vector4(ext.x0, ext.z0, ext.x1, ext.z1) },
     }]),
     vertexShader: `varying vec3 vWP;
@@ -79,7 +79,7 @@ VR.createSea = function (scene, ext, sunDir) {
         vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform float time; uniform vec3 sunDir; uniform vec4 ext; varying vec3 vWP;
+    fragmentShader: `uniform float time; uniform vec3 sunDir; uniform float light; uniform vec4 ext; varying vec3 vWP;
       #include <common>
       #include <fog_pars_fragment>
       void main(){
@@ -96,7 +96,8 @@ VR.createSea = function (scene, ext, sunDir) {
         vec3 shallow = vec3(0.30, 0.80, 0.80), deepc = vec3(0.02, 0.20, 0.40);
         vec3 col = mix(shallow, deepc, deep);
         col = mix(col, vec3(0.78, 0.90, 0.96), fres * 0.55);
-        float spec = pow(max(dot(reflect(-sunDir, n), V), 0.0), 140.0) * 1.6;
+        float spec = pow(max(dot(reflect(-sunDir, n), V), 0.0), 140.0) * 1.6 * light * step(0.0, sunDir.y);
+        col *= mix(0.12, 1.0, light);
         float a = mix(0.28, 0.98, deep) + fres * 0.35 + spec;
         gl_FragColor = vec4(col + spec, clamp(a, 0.0, 1.0));
         #include <fog_fragment>
