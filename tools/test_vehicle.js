@@ -1,6 +1,6 @@
 // Numerical checks for js/vehicle.js. Run: node tools/test_vehicle.js
 global.window = undefined;
-require('../js/vehicle.js');
+require('../public/js/vehicle.js');
 const { Vehicle, Driver, circlePolyPush } = globalThis.VR;
 let fails = 0;
 const check = (name, ok, info) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? '  (' + info + ')' : ''}`); if (!ok) fails++; };
@@ -102,7 +102,7 @@ const kmh = v => v.speed * 3.6;
   check('a 0.25 s left / 0.25 s right flick at 60 km/h changes heading under 6 deg', maxDev < 0.105, `${(maxDev * 57.3).toFixed(1)} deg`); }
 
 // 12d the AI tour driver on the real estate loop (data/scene.json) at each cruise speed
-{ const scene = JSON.parse(require('fs').readFileSync(__dirname + '/../data/scene.json', 'utf8'));
+{ const scene = JSON.parse(require('fs').readFileSync(__dirname + '/../public/data/scene.json', 'utf8'));
   for (const cruise of [24, 40, 60]) {
     const v = new Vehicle(envOf()), drv = new Driver(scene.tour);
     const [x0, z0] = drv.at(0), [x1, z1] = drv.at(5); v.place(x0, z0, Math.atan2(x1 - x0, -(z1 - z0))); drv.s = 0;
