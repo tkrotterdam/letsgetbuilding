@@ -1,7 +1,8 @@
 import os, sys, json, s3fs, pyarrow.dataset as ds, pyarrow.compute as pc
 from shapely import wkb
 REL='overturemaps-us-west-2/release/2026-10-21.0'
-W,S,E,N=57.36,-20.535,57.45,-20.45
+import os
+W,S,E,N=map(float,os.environ.get('BBOX','57.36,-20.535,57.45,-20.45').split(','))
 out=sys.argv[1]
 fs=s3fs.S3FileSystem(anon=True, client_kwargs={'region_name':'us-west-2'}, config_kwargs={'proxies':{'https':os.environ['HTTPS_PROXY']}})
 def fetch(theme,typ,cols):

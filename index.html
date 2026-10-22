@@ -160,13 +160,42 @@ h1 { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-heig
   #info { top: auto; bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + 120px); left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto }
 }
 @media (prefers-reduced-motion: reduce) { #panel { transition: none } }
+
+/* ---------- v2 additions ---------- */
+#modes button.drop[aria-pressed="true"] { background: var(--cane); color: #1d1a12 }
+#placeHint { position: fixed; z-index: 8; left: 50%; transform: translateX(-50%); top: calc(max(16px, env(safe-area-inset-top, 0px)) + 64px);
+  padding: 10px 16px; font-weight: 600; display: flex; gap: 12px; align-items: center }
+#placeHint button { border: 1px solid var(--line); background: var(--bg-2); border-radius: 8px; padding: 4px 10px; font-weight: 600 }
+body.placing #view canvas { cursor: crosshair }
+.gears { display: flex; gap: 4px }
+.gears button { border: 1px solid var(--line); background: var(--bg-2); border-radius: 8px; padding: 6px 9px; font-size: 12px; font-weight: 600 }
+.gears button[aria-pressed="true"] { background: var(--cane); color: #1d1a12; border-color: var(--cane) }
+.cart-preview { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center }
+#numIn { width: 96px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2);
+  font-family: var(--f-mono); font-size: 22px; font-weight: 600; text-align: center }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px }
+.swatches button { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); padding: 0 }
+.swatches button[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 2px }
+.btn-primary { border: 0; background: var(--accent); color: var(--accent-fg); border-radius: 10px; padding: 10px 14px; font-weight: 600 }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px }
+.btn-ghost { border: 1px solid var(--line); background: var(--bg-2); border-radius: 10px; padding: 10px 14px; font-weight: 600 }
+#info .actions { display: flex; gap: 8px; flex-wrap: wrap }
+#info .actions button { border: 1px solid var(--line); background: var(--bg-2); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 600 }
+#toast { position: fixed; z-index: 9; left: 50%; transform: translateX(-50%); top: calc(max(16px, env(safe-area-inset-top, 0px)) + 112px);
+  padding: 8px 14px; font-weight: 600; font-size: 13px }
+@media (min-width: 761px) {
+  #hud { left: calc(max(16px, env(safe-area-inset-left, 0px)) + 356px); right: calc(max(16px, env(safe-area-inset-right, 0px)) + 250px);
+    transform: none; justify-content: space-between; flex-wrap: wrap }
+  #placeHint { left: calc(50% + 178px) }
+}
+@media (max-width: 760px) { #modes button { padding: 8px 9px; font-size: 13px } #placeHint { top: calc(max(16px, env(safe-area-inset-top, 0px)) + 150px); width: calc(100vw - 32px); justify-content: space-between } .gears button { padding: 6px 7px } }
 </style>
 
 <div id="view"></div>
 <div id="labels"></div>
-<div id="loading"><div>Surveying Bel Ombre…<small>Loading terrain, 2,835 footprints and the estate roads</small></div></div>
+<div id="loading"><div>Surveying Bel Ombre…<small>Loading satellite imagery, terrain, trees and the estate villas</small></div></div>
 
-<button id="panelToggle" class="glass" aria-controls="panel">Filters</button>
+<button id="panelToggle" class="glass" aria-controls="panel">Menu</button>
 
 <aside id="panel" class="glass closed" aria-label="Filters and information">
   <header>
@@ -176,14 +205,15 @@ h1 { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-heig
   </header>
   <div class="tabs" role="tablist">
     <button role="tab" aria-selected="true" data-tab="filters" id="tab-filters">Filters</button>
+    <button role="tab" aria-selected="false" data-tab="cart" id="tab-cart">Your cart</button>
     <button role="tab" aria-selected="false" data-tab="places" id="tab-places">Places</button>
-    <button role="tab" aria-selected="false" data-tab="facts" id="tab-facts">Facts &amp; sources</button>
+    <button role="tab" aria-selected="false" data-tab="facts" id="tab-facts">Sources</button>
   </div>
 
   <div class="tabpane" data-pane="filters">
     <div class="stat-row">
       <div class="stat"><b id="st-vis">–</b><span>footprints shown</span></div>
-      <div class="stat"><b id="st-val">–</b><span>in Valriche</span></div>
+      <div class="stat"><b id="st-val">–</b><span>Valriche plots</span></div>
       <div class="stat"><b id="st-poi">–</b><span>places shown</span></div>
     </div>
     <div class="group" id="g-cat"><h2>Buildings by area</h2></div>
@@ -197,11 +227,25 @@ h1 { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-heig
       <label class="chk"><input type="checkbox" id="f-dim"><span></span><span>Fade everything outside Valriche</span><span></span></label>
       <label class="chk"><input type="checkbox" id="f-zone" checked><span class="sw" style="background:#d9822b"></span><span>Valriche outline (inferred)</span><span></span></label>
     </div>
-    <div class="group" id="g-layers"><h2>Ground layers</h2></div>
+    <div class="group" id="g-layers"><h2>Landscape</h2></div>
     <div class="group">
       <h2>Terrain height</h2>
-      <div class="range"><input type="range" id="f-ex" min="1" max="3" step="0.25" value="1.5" aria-label="Terrain exaggeration"><span class="n" id="f-ex-v">1.5×</span></div>
-      <p class="note">Elevation is a 30 m surface model, so tree canopy is included. Exaggeration only changes the hills, not the buildings.</p>
+      <div class="range"><input type="range" id="f-ex" min="1" max="2.5" step="0.25" value="1.25" aria-label="Terrain exaggeration"><span class="n" id="f-ex-v">1.25×</span></div>
+      <p class="note">Elevation is a 30 m surface model, so tree canopy is included. Exaggeration lifts the hills only.</p>
+    </div>
+  </div>
+
+  <div class="tabpane" data-pane="cart" hidden>
+    <div class="group">
+      <h2>Race number</h2>
+      <div class="cart-preview"><input id="numIn" type="number" min="0" max="999" value="36" aria-label="Cart number"><p class="note">Shown on both sides, the bonnet, the roof and the number plate.</p></div>
+    </div>
+    <div class="group"><h2>Paint</h2><div class="swatches" id="g-paint"></div></div>
+    <div class="group"><h2>Stickers</h2><div class="chips" id="g-stick"></div></div>
+    <div class="group"><h2>Top speed</h2><div class="gears" id="g-gear-panel"></div>
+      <p class="note">Estate is a real golf cart. Sport and Turbo are not road legal, even in Bel Ombre.</p></div>
+    <div class="group"><h2>Start</h2>
+      <div class="btn-row"><button class="btn-primary" id="b-drop">Drop cart on the map</button><button class="btn-ghost" id="b-club">Start at the clubhouse</button></div>
     </div>
   </div>
 
@@ -213,36 +257,32 @@ h1 { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-heig
   </div>
 
   <div class="tabpane" data-pane="facts" hidden>
-    <div class="group">
-      <h2>The estate, checked</h2>
-      <ul class="facts" id="facts"></ul>
-    </div>
-    <div class="group">
-      <h2>What the model is built from</h2>
-      <ul class="facts" id="sources"></ul>
-    </div>
-    <div class="group">
-      <h2>Known limits</h2>
-      <ul class="facts" id="limits"></ul>
-    </div>
+    <div class="group"><h2>The estate, checked</h2><ul class="facts" id="facts"></ul></div>
+    <div class="group"><h2>What the model is built from</h2><ul class="facts" id="sources"></ul></div>
+    <div class="group"><h2>Known limits</h2><ul class="facts" id="limits"></ul></div>
   </div>
 </aside>
 
 <div id="modes" class="glass" role="group" aria-label="View mode">
   <button data-mode="explore" aria-pressed="true">Explore</button>
-  <button data-mode="drive" aria-pressed="false">Drive cart</button>
-  <button data-mode="tour" aria-pressed="false">Cart tour</button>
+  <button class="drop" id="m-drop" aria-pressed="false">Drop cart</button>
+  <button data-mode="drive" aria-pressed="false">Drive</button>
+  <button data-mode="tour" aria-pressed="false">Tour</button>
 </div>
+
+<div id="placeHint" class="glass" hidden><span>Tap or click anywhere on the land to drop your cart</span><button id="b-cancel-drop">Cancel</button></div>
+<div id="toast" class="glass" hidden></div>
 
 <div id="hud" class="glass" hidden>
   <div class="speed"><span id="spd">0</span> <small>km/h</small></div>
   <div class="meta">
-    <span id="hud-line"><b>Golf cart</b> · top speed 24 km/h</span>
+    <span id="hud-line"><b>Cart 36</b></span>
     <span id="hud-near">On the estate roads</span>
     <div class="bar" id="hud-bar" hidden><i id="hud-prog"></i></div>
-    <span id="keys">W A S D or arrows · Space brake · C camera · R back to road</span>
+    <span id="keys">W A S D or arrows · Shift boost · Space brake · C camera · R road · P drop</span>
   </div>
   <div class="btns">
+    <div class="gears" id="g-gear"></div>
     <button id="b-cam" aria-pressed="false">Driver view</button>
     <button id="b-tspeed" hidden>Speed 1×</button>
     <button id="b-pause" hidden aria-pressed="false">Pause</button>
@@ -255,790 +295,13 @@ h1 { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-heig
 </div>
 
 <div id="mini" class="glass"><canvas id="minic" width="440" height="278" aria-label="Minimap, click to jump"></canvas>
-  <div class="cap"><span>Bel Ombre · 7 km across</span><span>N ↑</span></div></div>
+  <div class="cap"><span>Bel Ombre · click to jump</span><span>N ↑</span></div></div>
 
 <div id="info" class="glass" hidden><button class="x" id="info-x" aria-label="Close">×</button><div id="info-body"></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script>
-(async function () {
-'use strict';
-const $ = s => document.querySelector(s);
-const loading = $('#loading');
-let S;
-try { S = await fetch('data/scene.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }); }
-catch (e) { loading.innerHTML = '<div>Could not load the estate data.<small>data/scene.json did not load (' + e.message + '). Serve the folder over HTTP, e.g. python3 -m http.server.</small></div>'; return; }
-if (!window.THREE) { loading.innerHTML = '<div>3D engine did not load.<small>three.js comes from cdn.jsdelivr.net; check the connection.</small></div>'; return; }
-
-// ------------------------------------------------------------------ constants & helpers
-const M = S.meta, D = S.dem;
-const [LON0, LAT0] = M.origin;
-const toLL = (x, z) => [LON0 + x / M.kx, LAT0 - z / M.ky];
-const fmtLL = (x, z) => { const [lo, la] = toLL(x, z); return `${Math.abs(la).toFixed(5)}°S ${lo.toFixed(5)}°E`; };
-const XW = (D.w - 1) * D.dx, ZH = (D.h - 1) * D.dz;
-let EX = 1.5;
-const STOREY = 3.2;
-const SEA = 0.0;
-
-function hRaw(x, z) {
-  let fx = (x - D.x0) / D.dx, fz = (z - D.z0) / D.dz;
-  fx = Math.max(0, Math.min(D.w - 1.001, fx)); fz = Math.max(0, Math.min(D.h - 1.001, fz));
-  const i = fz | 0, j = fx | 0, u = fx - j, v = fz - i, w = D.w, d = D.data;
-  const a = d[i * w + j], b = d[i * w + j + 1], c = d[(i + 1) * w + j], e = d[(i + 1) * w + j + 1];
-  return ((a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + e * u) * v) / 10;
-}
-const landH = h => h <= 0.4 ? -4 : h;          // treat DEM sea surface as lagoon floor
-const H = (x, z) => landH(hRaw(x, z)) * EX;
-
-// ------------------------------------------------------------------ renderer & scene
-const view = $('#view');
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.outputEncoding = THREE.sRGBEncoding;
-view.appendChild(renderer.domElement);
-const scene = new THREE.Scene();
-const SKY = new THREE.Color('#c7dde6');
-scene.background = SKY;
-scene.fog = new THREE.Fog(SKY, 3500, 11000);
-const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 1, 30000);
-camera.position.set(700, 520, 1500);
-if (innerWidth < innerHeight) camera.position.set(900, 1100, 2600);
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 20, -60);
-controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.maxPolarAngle = Math.PI * 0.48; controls.minDistance = 40; controls.maxDistance = 9000;
-controls.screenSpacePanning = false;
-
-// Southern hemisphere: the sun sits to the north.
-scene.add(new THREE.HemisphereLight(0xeaf4ff, 0x6b6a4a, 0.75));
-const sun = new THREE.DirectionalLight(0xfff2dc, 0.85);
-sun.position.set(-1500, 3000, -2500); scene.add(sun);
-
-// ------------------------------------------------------------------ ground texture
-const TEX_W = /Mobi|Android/i.test(navigator.userAgent) ? 2048 : 4096;
-const TEX_H = Math.round(TEX_W * ZH / XW);
-const gcan = document.createElement('canvas'); gcan.width = TEX_W; gcan.height = TEX_H;
-const gctx = gcan.getContext('2d');
-const tx = x => (x - D.x0) / XW * TEX_W, ty = z => (z - D.z0) / ZH * TEX_H;
-
-// base: elevation tint + hillshade, drawn at DEM resolution then scaled up smoothly
-const base = document.createElement('canvas'); base.width = D.w; base.height = D.h;
-(function () {
-  const bc = base.getContext('2d'), img = bc.createImageData(D.w, D.h);
-  for (let i = 0; i < D.h; i++) for (let j = 0; j < D.w; j++) {
-    const k = i * D.w + j, h = D.data[k] / 10;
-    const hl = D.data[i * D.w + Math.max(0, j - 1)] / 10, hr = D.data[i * D.w + Math.min(D.w - 1, j + 1)] / 10;
-    const hu = D.data[Math.max(0, i - 1) * D.w + j] / 10, hd = D.data[Math.min(D.h - 1, i + 1) * D.w + j] / 10;
-    const sx = (hr - hl) / (2 * D.dx), sz = (hd - hu) / (2 * D.dz);
-    // light from north-west, above
-    let shade = 0.82 + (-sx * 0.6 + sz * 0.9) * 1.6; shade = Math.max(0.45, Math.min(1.25, shade));
-    let r, g, b;
-    if (h <= 0.4) { r = 72; g = 164; b = 178; shade = 1; }
-    else if (h < 3) { r = 214; g = 201; b = 160; }      // beach / coastal flats
-    else { const t = Math.min(1, h / 420); r = 128 - 58 * t; g = 156 - 46 * t; b = 84 - 28 * t; }
-    img.data.set([r * shade, g * shade, b * shade, 255], k * 4);
-  }
-  bc.putImageData(img, 0, 0);
-})();
-
-const LU_STYLE = {
-  farmland: { f: '#b9bf6a', layer: 'cane' }, farmyard: { f: '#c9b98a', layer: 'cane' },
-  residential: { f: 'rgba(222,208,178,.55)', layer: 'urban' }, commercial: { f: 'rgba(210,190,170,.6)', layer: 'urban' },
-  kindergarten: { f: 'rgba(222,208,178,.6)', layer: 'urban' }, pitch: { f: '#8fc46a', layer: 'urban' },
-  golf_course: { f: '#86b95c', layer: 'golf' }, rough: { f: '#7aab52', layer: 'golf' }, fairway: { f: '#93cf62', layer: 'golf' },
-  tee: { f: '#a5dc72', layer: 'golf' }, green: { f: '#b2e67c', layer: 'golf' }, bunker: { f: '#efe3bd', layer: 'golf' },
-  water_hazard: { f: '#4aa3bf', layer: 'golf' }, lateral_water_hazard: { f: '#4aa3bf', layer: 'golf' },
-  nature_reserve: { s: '#3c7a3a', layer: 'reserve' }, national_park: { s: '#2d6a2d', layer: 'reserve' },
-};
-const LAYERS = [
-  { id: 'golf', label: 'Golf courses (fairways, greens, bunkers)', sw: '#93cf62', on: true },
-  { id: 'cane', label: 'Sugar cane & farmland', sw: '#b9bf6a', on: true },
-  { id: 'urban', label: 'Residential & sports ground', sw: '#ded0b2', on: true },
-  { id: 'reserve', label: 'Nature reserve & national park edges', sw: '#3c7a3a', on: true },
-  { id: 'water', label: 'Lakes, rivers & lagoon', sw: '#4aa3bf', on: true },
-  { id: 'roads', label: 'Roads & cart paths', sw: '#5b5f63', on: true },
-];
-const layerOn = Object.fromEntries(LAYERS.map(l => [l.id, l.on]));
-
-function ringPath(ctx, rings) {
-  ctx.beginPath();
-  for (const r of rings) { for (let k = 0; k < r.length; k += 2) (k ? ctx.lineTo : ctx.moveTo).call(ctx, tx(r[k]), ty(r[k + 1])); ctx.closePath(); }
-}
-const pxm = TEX_W / XW; // pixels per metre
-function drawGround() {
-  gctx.imageSmoothingEnabled = true; gctx.imageSmoothingQuality = 'high';
-  gctx.drawImage(base, 0, 0, TEX_W, TEX_H);
-  if (layerOn.water) for (const w of S.water) if (w.r && w.t === 'ocean') { ringPath(gctx, w.r); gctx.fillStyle = '#4fa9b9'; gctx.fill('evenodd'); }
-  const order = ['farmland', 'farmyard', 'residential', 'commercial', 'kindergarten', 'pitch', 'golf_course', 'rough', 'fairway', 'tee', 'green', 'water_hazard', 'lateral_water_hazard', 'bunker', 'nature_reserve', 'national_park'];
-  const lus = S.landuse.slice().sort((a, b) => order.indexOf(a.t) - order.indexOf(b.t));
-  for (const l of lus) {
-    const st = LU_STYLE[l.t]; if (!st || !layerOn[st.layer]) continue;
-    ringPath(gctx, l.r);
-    if (st.f) { gctx.fillStyle = st.f; gctx.fill('evenodd'); }
-    if (st.s) { gctx.setLineDash([10, 8]); gctx.strokeStyle = st.s; gctx.lineWidth = 3; gctx.stroke(); gctx.setLineDash([]); }
-  }
-  if (layerOn.water) {
-    for (const w of S.water) if (w.r && w.t !== 'ocean') { ringPath(gctx, w.r); gctx.fillStyle = '#3f95b4'; gctx.fill('evenodd'); }
-    gctx.strokeStyle = '#3f95b4'; gctx.lineCap = 'round';
-    for (const w of S.water) if (w.l) {
-      gctx.lineWidth = Math.max(1.5, (w.t === 'river' ? 6 : 3) * pxm);
-      gctx.beginPath(); for (let k = 0; k < w.l.length; k += 2) (k ? gctx.lineTo : gctx.moveTo).call(gctx, tx(w.l[k]), ty(w.l[k + 1])); gctx.stroke();
-    }
-  }
-  groundTex.needsUpdate = true;
-}
-const groundTex = new THREE.CanvasTexture(gcan);
-groundTex.encoding = THREE.sRGBEncoding;
-groundTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
-// ------------------------------------------------------------------ terrain mesh
-const terrGeo = new THREE.BufferGeometry();
-{
-  const pos = new Float32Array(D.w * D.h * 3), uv = new Float32Array(D.w * D.h * 2), idx = [];
-  for (let i = 0; i < D.h; i++) for (let j = 0; j < D.w; j++) {
-    const k = i * D.w + j; pos[k * 3] = D.x0 + j * D.dx; pos[k * 3 + 2] = D.z0 + i * D.dz;
-    uv[k * 2] = j / (D.w - 1); uv[k * 2 + 1] = 1 - i / (D.h - 1);
-    if (i < D.h - 1 && j < D.w - 1) idx.push(k, k + D.w, k + 1, k + 1, k + D.w, k + D.w + 1);
-  }
-  terrGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  terrGeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  terrGeo.setIndex(idx);
-}
-function updateTerrain() {
-  const p = terrGeo.attributes.position.array;
-  for (let k = 0; k < D.w * D.h; k++) p[k * 3 + 1] = landH(D.data[k] / 10) * EX;
-  terrGeo.attributes.position.needsUpdate = true; terrGeo.computeVertexNormals(); terrGeo.computeBoundingSphere();
-}
-const terrain = new THREE.Mesh(terrGeo, new THREE.MeshLambertMaterial({ map: groundTex }));
-scene.add(terrain);
-
-const seaMesh = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000),
-  new THREE.MeshPhongMaterial({ color: 0x2f86a6, transparent: true, opacity: 0.72, shininess: 80, specular: 0x88bbcc }));
-seaMesh.rotation.x = -Math.PI / 2; seaMesh.position.y = SEA + 0.15; scene.add(seaMesh);
-
-// ------------------------------------------------------------------ roads (ribbons)
-const ROAD = {
-  primary: [8, '#4e5357'], secondary: [7, '#53585c'], tertiary: [6, '#585d61'], residential: [5, '#62676b'],
-  living_street: [4.5, '#62676b'], unclassified: [5, '#666b6e'], service: [3.6, '#6d7174'],
-  unknown: [2.4, '#cbbd9c'], track: [3, '#b49e78'], footway: [1.4, '#d8ccb0'], path: [1.2, '#d8ccb0'], steps: [1.4, '#d8ccb0'],
-};
-let roadMesh = null;
-function buildRoads() {
-  if (roadMesh) { scene.remove(roadMesh); roadMesh.geometry.dispose(); }
-  const pos = [], col = [], c = new THREE.Color();
-  for (const r of S.roads) {
-    const [w, hex] = ROAD[r.c] || ROAD.unknown; c.set(hex);
-    // resample every ~4 m so the ribbon hugs the ground
-    const pts = [];
-    for (let k = 0; k < r.p.length - 2; k += 2) {
-      const ax = r.p[k], az = r.p[k + 1], bx = r.p[k + 2], bz = r.p[k + 3];
-      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 4));
-      for (let s = 0; s < n; s++) pts.push([ax + (bx - ax) * s / n, az + (bz - az) * s / n]);
-    }
-    pts.push([r.p[r.p.length - 2], r.p[r.p.length - 1]]);
-    let prev = null;
-    for (let k = 0; k < pts.length; k++) {
-      const a = pts[Math.max(0, k - 1)], b = pts[Math.min(pts.length - 1, k + 1)];
-      let dx = b[0] - a[0], dz = b[1] - a[1]; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
-      const nx = -dz * w / 2, nz = dx * w / 2, [x, z] = pts[k], y = Math.max(H(x, z), SEA + 0.2) + 0.45;
-      const cur = [x + nx, y, z + nz, x - nx, y, z - nz];
-      if (prev) {
-        pos.push(...prev.slice(0, 3), ...cur.slice(0, 3), ...prev.slice(3), ...prev.slice(3), ...cur.slice(0, 3), ...cur.slice(3));
-        for (let q = 0; q < 6; q++) col.push(c.r, c.g, c.b);
-      }
-      prev = cur;
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.computeVertexNormals();
-  roadMesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
-  roadMesh.visible = layerOn.roads; scene.add(roadMesh);
-}
-
-// ------------------------------------------------------------------ Valriche outline
-let zoneLine = null;
-function buildZone() {
-  if (zoneLine) { scene.remove(zoneLine); zoneLine.geometry.dispose(); }
-  const v = S.valriche, pts = [];
-  for (let k = 0; k < v.length; k += 2) {
-    const ax = v[k], az = v[k + 1], bx = v[(k + 2) % v.length], bz = v[(k + 3) % v.length];
-    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 10));
-    for (let s = 0; s <= n; s++) { const x = ax + (bx - ax) * s / n, z = az + (bz - az) * s / n; pts.push(new THREE.Vector3(x, H(x, z) + 3, z)); }
-  }
-  zoneLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: 0xd9822b, dashSize: 14, gapSize: 8 }));
-  zoneLine.computeLineDistances(); zoneLine.visible = $('#f-zone').checked; scene.add(zoneLine);
-}
-
-// ------------------------------------------------------------------ buildings
-const CATS = [
-  { id: 'valriche', label: 'Valriche villas (inside outline)', wall: '#f4efe4', roof: '#4f6b70', on: true },
-  { id: 'landmark', label: 'Château & golf clubhouse', wall: '#f7f1e3', roof: '#8a3b2a', on: true },
-  { id: 'resort', label: 'Beach resorts & hotels', wall: '#eadbc0', roof: '#7b6a58', on: true },
-  { id: 'village', label: 'Villages & other buildings', wall: '#d9d2c3', roof: '#8b8f8c', on: true },
-];
-const SRCS = [
-  { id: 'osm', label: 'OpenStreetMap (traced by mappers)', on: true },
-  { id: 'msft', label: 'Microsoft ML Buildings (machine-learned)', on: true },
-  { id: 'google', label: 'Google Open Buildings (machine-learned)', on: true },
-];
-const catOn = Object.fromEntries(CATS.map(c => [c.id, c.on])), srcOn = Object.fromEntries(SRCS.map(s => [s.id, s.on]));
-let floorSel = 'all';
-const B = S.buildings;
-for (const b of B) {
-  const p = b.r || b.p; let cx = 0, cz = 0; for (let k = 0; k < p.length; k += 2) { cx += p[k]; cz += p[k + 1]; }
-  b.cx = cx / (p.length / 2); b.cz = cz / (p.length / 2);
-}
-const bMeshes = []; // {mesh, key, cat, src, fb, tri:[start...], ids:[]}
-const dimMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.28, color: 0xbbbbbb, depthWrite: false, side: THREE.DoubleSide });
-const fullMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
-
-function baseOf(b) {
-  const p = b.r || b.p; let m = Infinity;
-  for (let k = 0; k < p.length; k += 2) {
-    const dx = p[k] - b.cx, dz = p[k + 1] - b.cz, L = Math.hypot(dx, dz) || 1;
-    m = Math.min(m, H(p[k], p[k + 1]), H(p[k] + dx / L * 4, p[k + 1] + dz / L * 4));
-  }
-  return Math.max(m, SEA + 0.3) - 0.4;
-}
-function buildBuildings() {
-  for (const o of bMeshes) { scene.remove(o.mesh); o.mesh.geometry.dispose(); }
-  bMeshes.length = 0;
-  const groups = new Map();
-  const wc = new THREE.Color(), rc = new THREE.Color();
-  B.forEach((b, i) => {
-    const fb = b.f >= 2 ? '2' : '1', key = b.c + '|' + b.s + '|' + fb;
-    if (!groups.has(key)) groups.set(key, { pos: [], col: [], tri: [], ids: [], cat: b.c, src: b.s, fb });
-    const G = groups.get(key), cat = CATS.find(c => c.id === b.c);
-    G.tri.push(G.pos.length / 9); G.ids.push(i);
-    const p = b.r || b.p, n = p.length / 2, y0 = baseOf(b), y1 = y0 + 0.4 + b.f * STOREY;
-    b.y0 = y0; b.y1 = y1;
-    wc.set(cat.wall); rc.set(cat.roof);
-    // walls: vary tone a touch per building so neighbours read apart
-    const tint = 0.92 + ((i * 2654435761 >>> 0) % 100) / 100 * 0.1;
-    const push = (c, ...v) => { G.pos.push(...v); for (let q = 0; q < v.length / 3; q++) G.col.push(c.r * tint, c.g * tint, c.b * tint); };
-    // winding: make polygon counter-clockwise in x/z so outward normals work
-    let area = 0; for (let k = 0; k < n; k++) { const j = (k + 1) % n; area += p[k * 2] * p[j * 2 + 1] - p[j * 2] * p[k * 2 + 1]; }
-    const idx = [...Array(n).keys()]; if (area > 0) idx.reverse();
-    for (let k = 0; k < n; k++) {
-      const a = idx[k], c = idx[(k + 1) % n];
-      const ax = p[a * 2], az = p[a * 2 + 1], cx = p[c * 2], cz = p[c * 2 + 1];
-      push(wc, ax, y0, az, cx, y0, cz, cx, y1, cz, ax, y0, az, cx, y1, cz, ax, y1, az);
-    }
-    if (b.r) {
-      // hipped roof on oriented rectangle
-      const P = [0, 1, 2, 3].map(k => new THREE.Vector2(p[k * 2], p[k * 2 + 1]));
-      const e0 = P[1].clone().sub(P[0]), e1 = P[2].clone().sub(P[1]);
-      let A = P, long = e0.length() >= e1.length();
-      if (!long) A = [P[1], P[2], P[3], P[0]];
-      const L = A[1].distanceTo(A[0]), Wd = A[2].distanceTo(A[1]);
-      const dir = A[1].clone().sub(A[0]).normalize(), inset = Math.min(Wd / 2, L / 2 - 0.01);
-      const m0 = A[0].clone().add(A[3]).multiplyScalar(0.5).addScaledVector(dir, inset);
-      const m1 = A[1].clone().add(A[2]).multiplyScalar(0.5).addScaledVector(dir, -inset);
-      const rh = y1 + Math.min(4.5, Wd * 0.3), eave = y1;
-      const V = (v, y) => [v.x, y, v.y];
-      const ccw = area <= 0; // matches wall winding decision
-      const tri = (a, b, c) => ccw ? push(rc, ...a, ...b, ...c) : push(rc, ...a, ...c, ...b);
-      const quad = (a, b, c, d) => { tri(a, b, c); tri(a, c, d); };
-      quad(V(A[0], eave), V(A[1], eave), V(m1, rh), V(m0, rh));
-      quad(V(A[2], eave), V(A[3], eave), V(m0, rh), V(m1, rh));
-      tri(V(A[1], eave), V(A[2], eave), V(m1, rh));
-      tri(V(A[3], eave), V(A[0], eave), V(m0, rh));
-    } else {
-      const contour = []; for (let k = 0; k < n; k++) contour.push(new THREE.Vector2(p[k * 2], p[k * 2 + 1]));
-      const tris = THREE.ShapeUtils.triangulateShape(contour, []);
-      for (const t of tris) {
-        const [a, b2, c] = t;
-        const pa = contour[a], pb = contour[b2], pc = contour[c];
-        const cross = (pb.x - pa.x) * (pc.y - pa.y) - (pb.y - pa.y) * (pc.x - pa.x);
-        if (cross < 0) push(rc, pa.x, y1, pa.y, pb.x, y1, pb.y, pc.x, y1, pc.y);
-        else push(rc, pa.x, y1, pa.y, pc.x, y1, pc.y, pb.x, y1, pb.y);
-      }
-    }
-  });
-  for (const [key, G] of groups) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(G.pos, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(G.col, 3));
-    g.computeVertexNormals();
-    const mesh = new THREE.Mesh(g, fullMat); mesh.userData.key = key;
-    scene.add(mesh); bMeshes.push({ mesh, key, cat: G.cat, src: G.src, fb: G.fb, tri: G.tri, ids: G.ids });
-  }
-  applyBuildingFilters();
-}
-function bVisible(b) { return catOn[b.c] && srcOn[b.s] && (floorSel === 'all' || (floorSel === '1' ? b.f < 2 : b.f >= 2)); }
-function applyBuildingFilters() {
-  const dim = $('#f-dim').checked;
-  for (const o of bMeshes) {
-    o.mesh.visible = catOn[o.cat] && srcOn[o.src] && (floorSel === 'all' || floorSel === o.fb);
-    o.mesh.material = dim && o.cat !== 'valriche' ? dimMat : fullMat;
-  }
-  let vis = 0, val = 0;
-  for (const b of B) if (bVisible(b)) { vis++; if (b.c === 'valriche') val++; }
-  $('#st-vis').textContent = vis.toLocaleString('en-GB'); $('#st-val').textContent = val;
-  for (const c of CATS) $('#n-cat-' + c.id).textContent = B.filter(b => b.c === c.id && srcOn[b.s]).length;
-  for (const s of SRCS) $('#n-src-' + s.id).textContent = B.filter(b => b.s === s.id && catOn[b.c]).length;
-  rebuildColliders();
-}
-
-// ------------------------------------------------------------------ POIs
-const PCATS = [
-  { id: 'estate', label: 'Estate' }, { id: 'golf', label: 'Golf' }, { id: 'hotel', label: 'Hotels' },
-  { id: 'heritage', label: 'Heritage' }, { id: 'food', label: 'Food & drink' }, { id: 'nature', label: 'Nature & beach' },
-  { id: 'wellness', label: 'Spa & fitness' }, { id: 'other', label: 'Other' },
-];
-const PV = [{ id: 'verified', label: 'Verified' }, { id: 'unverified', label: 'Unverified' }, { id: 'flagged', label: 'Flagged' }];
-const pcatOn = Object.fromEntries(PCATS.map(c => [c.id, ['estate', 'golf', 'hotel', 'heritage', 'nature'].includes(c.id)]));
-const pvOn = { verified: true, unverified: true, flagged: true };
-let searchQ = '';
-const PRIO = { estate: 6, heritage: 5, golf: 4, hotel: 3, nature: 2, food: 1, wellness: 0, other: 0 };
-const labelsEl = $('#labels');
-for (const p of S.pois) {
-  const el = document.createElement('div');
-  el.className = 'lbl' + (p.v === 'verified' && PRIO[p.c] >= 4 ? ' big' : '');
-  el.innerHTML = `<span class="dot v-${p.v}"></span>`; el.append(p.n);
-  el.addEventListener('click', ev => { ev.stopPropagation(); showPoi(p); });
-  labelsEl.appendChild(el); p.el = el; p.w = 0; p.h = 0;
-}
-function poiVisible(p) {
-  if (!pcatOn[p.c] || !pvOn[p.v]) return false;
-  return !searchQ || p.n.toLowerCase().includes(searchQ);
-}
-const v3 = new THREE.Vector3();
-function updateLabels() {
-  const placed = [];
-  const list = S.pois.filter(poiVisible).sort((a, b) => (PRIO[b.c] + (b.v === 'verified')) - (PRIO[a.c] + (a.v === 'verified')));
-  const visSet = new Set();
-  const maxD = mode === 'explore' ? 6000 : 700;
-  for (const p of list) {
-    v3.set(p.x, H(p.x, p.z) + 12, p.z);
-    const d = v3.distanceTo(camera.position);
-    if (d > maxD) continue;
-    v3.project(camera);
-    if (v3.z > 1 || Math.abs(v3.x) > 1.05 || Math.abs(v3.y) > 1.05) continue;
-    const sx = (v3.x + 1) / 2 * innerWidth, sy = (1 - v3.y) / 2 * innerHeight;
-    if (!p.w) { p.w = p.el.offsetWidth || 120; p.h = p.el.offsetHeight || 22; }
-    const r = [sx - 8, sy - p.h, sx - 8 + p.w, sy];
-    if (placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) continue;
-    placed.push(r); visSet.add(p);
-    p.el.style.transform = `translate(${r[0]}px, ${r[1]}px)`;
-  }
-  for (const p of S.pois) p.el.hidden = !visSet.has(p);
-  $('#st-poi').textContent = S.pois.filter(poiVisible).length;
-}
-
-// ------------------------------------------------------------------ info card
-const info = $('#info'), infoBody = $('#info-body');
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const SRC_NAME = { osm: 'OpenStreetMap', msft: 'Microsoft ML Buildings', google: 'Google Open Buildings' };
-const CAT_NAME = { valriche: 'Valriche villa (inferred from location)', landmark: 'Landmark', resort: 'Resort or hotel building', village: 'Village or other building' };
-let selMarker = null;
-function mark(x, y, z) {
-  if (!selMarker) {
-    selMarker = new THREE.Mesh(new THREE.ConeGeometry(4, 10, 16), new THREE.MeshBasicMaterial({ color: 0xd9822b }));
-    selMarker.rotation.x = Math.PI; scene.add(selMarker);
-  }
-  selMarker.position.set(x, y + 12, z); selMarker.visible = true;
-}
-function showBuilding(i) {
-  const b = B[i];
-  infoBody.innerHTML = `<h3>${esc(b.n || CAT_NAME[b.c].split(' (')[0])}</h3>
-  <dl>
-    <dt>Type</dt><dd>${esc(CAT_NAME[b.c])}${b.k ? ' · tagged ' + esc(b.k) : ''}</dd>
-    <dt>Footprint</dt><dd>${b.a.toLocaleString('en-GB')} m²</dd>
-    <dt>Storeys</dt><dd>${b.f} ${b.m ? '(mapped)' : '(estimated)'}</dd>
-    <dt>Roof</dt><dd>${b.r ? 'Hipped (modelled)' : 'Flat (modelled)'}</dd>
-    <dt>Source</dt><dd>${SRC_NAME[b.s]}</dd>
-    <dt>Location</dt><dd>${fmtLL(b.cx, b.cz)}</dd>
-  </dl>
-  <p class="note">${b.s === 'osm' ? 'Traced by an OpenStreetMap volunteer.' : 'Detected by a machine-learning model from satellite imagery. A villa can show up as several footprints (pavilions, pool house).'}</p>`;
-  info.hidden = false; mark(b.cx, b.y1 + 4, b.cz);
-}
-const VTXT = { verified: 'Verified against an independent source', unverified: 'Not independently checked', flagged: 'Flagged: wrong, outdated or misplaced' };
-function showPoi(p) {
-  infoBody.innerHTML = `<h3>${esc(p.n)}</h3>
-  <span class="status"><span class="dot v-${p.v}"></span>${VTXT[p.v]}</span>
-  <p class="note" style="color:var(--fg)">${esc(p.note)}</p>
-  <dl>
-    <dt>Category</dt><dd>${esc(PCATS.find(c => c.id === p.c).label)}</dd>
-    <dt>Listing confidence</dt><dd>${Math.round(p.conf * 100)}% (Overture)</dd>
-    <dt>Listed by</dt><dd>${esc(p.src.join(', ') || 'Overture')}</dd>
-    <dt>Location</dt><dd>${fmtLL(p.x, p.z)}</dd>
-  </dl>`;
-  info.hidden = false; mark(p.x, H(p.x, p.z), p.z);
-  if (mode === 'explore') flyTo(p.x, p.z, 380);
-}
-$('#info-x').onclick = () => { info.hidden = true; if (selMarker) selMarker.visible = false; };
-
-// ------------------------------------------------------------------ camera flights
-let flight = null;
-function flyTo(x, z, dist = 500) {
-  const t = new THREE.Vector3(x, H(x, z), z);
-  const off = camera.position.clone().sub(controls.target).setLength(dist);
-  if (off.y < dist * 0.35) off.y = dist * 0.55;
-  flight = { t0: performance.now(), from: [camera.position.clone(), controls.target.clone()], to: [t.clone().add(off), t] };
-}
-
-// ------------------------------------------------------------------ picking
-const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
-let downAt = null;
-renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (!downAt || mode !== 'explore' || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
-  mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
-  ray.setFromCamera(mouse, camera);
-  const hits = ray.intersectObjects(bMeshes.filter(o => o.mesh.visible).map(o => o.mesh));
-  if (!hits.length) return;
-  const h = hits[0], o = bMeshes.find(q => q.mesh === h.object);
-  let lo = 0, hi = o.tri.length - 1;
-  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (o.tri[mid] <= h.faceIndex) lo = mid; else hi = mid - 1; }
-  showBuilding(o.ids[lo]);
-});
-
-// ------------------------------------------------------------------ golf cart
-function makeCart() {
-  const g = new THREE.Group();
-  const white = new THREE.MeshLambertMaterial({ color: 0xf5f3ee }), dark = new THREE.MeshLambertMaterial({ color: 0x1f2326 });
-  const seat = new THREE.MeshLambertMaterial({ color: 0x0d6c73 }), roof = new THREE.MeshLambertMaterial({ color: 0xe9e4d8 });
-  const box = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
-  box(1.2, 0.35, 2.4, white, 0, 0.55, 0);           // chassis
-  box(1.2, 0.5, 0.6, white, 0, 0.85, -0.95);         // bonnet
-  box(1.0, 0.18, 0.55, seat, 0, 0.92, 0.15);         // seat base
-  box(1.0, 0.5, 0.12, seat, 0, 1.2, 0.45);           // seat back
-  box(1.0, 0.18, 0.5, seat, 0, 0.92, 0.85);          // rear bench (4-seater)
-  box(1.0, 0.45, 0.12, seat, 0, 1.15, 1.1);
-  box(1.3, 0.08, 2.5, roof, 0, 2.05, 0.1);           // canopy
-  for (const [x, z] of [[-0.55, -0.7], [0.55, -0.7], [-0.55, 1.1], [0.55, 1.1]]) box(0.06, 1.2, 0.06, dark, x, 1.45, z);
-  box(0.9, 0.5, 0.04, new THREE.MeshLambertMaterial({ color: 0x9ccbd3, transparent: true, opacity: 0.5 }), 0, 1.6, -0.72); // windscreen
-  const wheel = new THREE.CylinderGeometry(0.28, 0.28, 0.2, 14); wheel.rotateZ(Math.PI / 2);
-  for (const [x, z] of [[-0.6, -0.8], [0.6, -0.8], [-0.6, 0.8], [0.6, 0.8]]) { const w = new THREE.Mesh(wheel, dark); w.position.set(x, 0.28, z); g.add(w); }
-  box(0.3, 0.05, 0.3, dark, -0.25, 1.15, -0.45).rotation.x = -0.9; // steering wheel
-  box(0.25, 0.3, 0.25, new THREE.MeshLambertMaterial({ color: 0xa87b22 }), 0.35, 1.0, 1.35); // golf bag
-  g.scale.setScalar(1.6); // a little larger than life so it reads from afar
-  return g;
-}
-const cart = makeCart(); cart.visible = false; scene.add(cart);
-const car = { x: 0, z: 0, h: 0, v: 0 };            // h: heading, 0 = north (-z)
-const MAXV = 24 / 3.6, REVV = 8 / 3.6;
-const keys = { up: false, down: false, left: false, right: false, brake: false };
-let camMode = 'chase';
-
-// building colliders (spatial hash)
-const CELL = 40; let grid = new Map();
-function rebuildColliders() {
-  grid = new Map();
-  B.forEach((b, i) => {
-    if (!bVisible(b)) return;
-    const p = b.r || b.p; let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
-    for (let k = 0; k < p.length; k += 2) { x0 = Math.min(x0, p[k]); x1 = Math.max(x1, p[k]); z0 = Math.min(z0, p[k + 1]); z1 = Math.max(z1, p[k + 1]); }
-    for (let gx = Math.floor(x0 / CELL); gx <= Math.floor(x1 / CELL); gx++) for (let gz = Math.floor(z0 / CELL); gz <= Math.floor(z1 / CELL); gz++) {
-      const k = gx + ',' + gz; if (!grid.has(k)) grid.set(k, []); grid.get(k).push(i);
-    }
-  });
-}
-function inPoly(x, z, p) {
-  let c = false;
-  for (let i = 0, j = p.length / 2 - 1; i < p.length / 2; j = i++) {
-    const xi = p[i * 2], zi = p[i * 2 + 1], xj = p[j * 2], zj = p[j * 2 + 1];
-    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c;
-  }
-  return c;
-}
-function blocked(x, z) {
-  if (hRaw(x, z) < 0.5) return 'sea';
-  const l = grid.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL));
-  if (l) for (const i of l) if (inPoly(x, z, B[i].r || B[i].p)) return 'building';
-  return null;
-}
-function placeCart() {
-  const fx = Math.sin(car.h), fz = -Math.cos(car.h), rx = Math.cos(car.h), rz = Math.sin(car.h);
-  const yF = Math.max(H(car.x + fx * 1.6, car.z + fz * 1.6), SEA + 0.4), yB = Math.max(H(car.x - fx * 1.6, car.z - fz * 1.6), SEA + 0.4);
-  const yR = Math.max(H(car.x + rx, car.z + rz), SEA + 0.4), yL = Math.max(H(car.x - rx, car.z - rz), SEA + 0.4);
-  const F = new THREE.Vector3(fx * 3.2, yF - yB, fz * 3.2).normalize();
-  const R = new THREE.Vector3(rx * 2, yR - yL, rz * 2).normalize();
-  const U = new THREE.Vector3().crossVectors(R, F).normalize();
-  const R2 = new THREE.Vector3().crossVectors(F, U).normalize();
-  cart.matrix.makeBasis(R2, U, F.clone().negate());
-  cart.quaternion.setFromRotationMatrix(cart.matrix);
-  cart.position.set(car.x, (yF + yB + yR + yL) / 4 + 0.15, car.z);
-  return { F, U };
-}
-function nearestRoad(x, z) {
-  let best = null, bd = Infinity;
-  for (const r of S.roads) {
-    if (['footway', 'path', 'steps'].includes(r.c)) continue;
-    for (let k = 0; k < r.p.length - 2; k += 2) {
-      const ax = r.p[k], az = r.p[k + 1], bx = r.p[k + 2], bz = r.p[k + 3];
-      const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
-      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
-      const px = ax + dx * t, pz = az + dz * t, d = Math.hypot(px - x, pz - z);
-      if (d < bd) { bd = d; best = { x: px, z: pz, h: Math.atan2(dx, -dz) }; }
-    }
-  }
-  return best;
-}
-
-// tour path
-const T = S.tour, Tcum = [0];
-for (let k = 1; k < T.length; k++) Tcum.push(Tcum[k - 1] + Math.hypot(T[k][0] - T[k - 1][0], T[k][1] - T[k - 1][1]));
-const TLEN = Tcum[Tcum.length - 1];
-function tourAt(s) {
-  s = ((s % TLEN) + TLEN) % TLEN;
-  let lo = 0, hi = Tcum.length - 1;
-  while (lo < hi - 1) { const m = (lo + hi) >> 1; if (Tcum[m] <= s) lo = m; else hi = m; }
-  const t = (s - Tcum[lo]) / ((Tcum[hi] - Tcum[lo]) || 1);
-  return [T[lo][0] + (T[hi][0] - T[lo][0]) * t, T[lo][1] + (T[hi][1] - T[lo][1]) * t];
-}
-let tourS = 0, tourMult = 1, tourPaused = false;
-
-function startAt(x, z, h) { car.x = x; car.z = z; car.h = h; car.v = 0; }
-
-// ------------------------------------------------------------------ modes
-let mode = 'explore';
-const hud = $('#hud'), pads = $('#pads');
-const touch = matchMedia('(pointer: coarse)').matches;
-function setMode(m) {
-  mode = m;
-  document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === m));
-  const driving = m !== 'explore';
-  controls.enabled = !driving; cart.visible = driving; hud.hidden = !driving;
-  pads.style.display = m === 'drive' && touch ? 'flex' : 'none';
-  $('#hud-bar').hidden = m !== 'tour'; $('#b-tspeed').hidden = m !== 'tour'; $('#b-pause').hidden = m !== 'tour';
-  $('#keys').hidden = m !== 'drive';
-  info.hidden = true; if (selMarker) selMarker.visible = false;
-  if (m === 'drive') {
-    if (!cart.userData.placed) { const [x, z] = tourAt(0), [x2, z2] = tourAt(6); startAt(x, z, Math.atan2(x2 - x, -(z2 - z))); cart.userData.placed = true; }
-    $('#hud-line').innerHTML = '<b>Golf cart</b> · top speed 24 km/h';
-    renderer.domElement.focus();
-  }
-  if (m === 'tour') {
-    $('#hud-line').innerHTML = `<b>Estate tour</b> · ${(TLEN / 1000).toFixed(1)} km loop on mapped roads`;
-  }
-  if (m === 'explore') { flyTo(car.x || 0, car.z || -60, 900); }
-  if (driving) snapCam = true;
-  try { localStorage.setItem('valriche-mode', m); } catch (e) { /* storage unavailable */ }
-}
-document.querySelectorAll('#modes button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
-$('#b-cam').onclick = () => { camMode = camMode === 'chase' ? 'driver' : 'chase'; $('#b-cam').setAttribute('aria-pressed', camMode === 'driver'); snapCam = true; };
-$('#b-tspeed').onclick = () => { tourMult = { 1: 3, 3: 8, 8: 1 }[tourMult]; $('#b-tspeed').textContent = `Speed ${tourMult}×`; };
-$('#b-pause').onclick = () => { tourPaused = !tourPaused; $('#b-pause').setAttribute('aria-pressed', tourPaused); $('#b-pause').textContent = tourPaused ? 'Resume' : 'Pause'; };
-
-const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'brake' };
-addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
-  if (mode === 'drive' && KEYMAP[e.code]) { keys[KEYMAP[e.code]] = true; e.preventDefault(); }
-  if (mode !== 'explore' && e.code === 'KeyC') $('#b-cam').click();
-  if (mode === 'drive' && e.code === 'KeyR') { const r = nearestRoad(car.x, car.z); if (r) startAt(r.x, r.z, r.h); }
-});
-addEventListener('keyup', e => { if (KEYMAP[e.code]) keys[KEYMAP[e.code]] = false; });
-pads.querySelectorAll('button').forEach(b => {
-  const k = b.dataset.k;
-  const on = e => { e.preventDefault(); keys[k] = true; b.classList.add('on'); b.setPointerCapture?.(e.pointerId); };
-  const off = () => { keys[k] = false; b.classList.remove('on'); };
-  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off);
-});
-
-// ------------------------------------------------------------------ minimap
-const minic = $('#minic'), mctx = minic.getContext('2d');
-const mini = document.createElement('canvas'); mini.width = minic.width; mini.height = minic.height;
-const MZ = { x0: -1500, x1: 1700, z0: -1250, z1: 770 }; // focus window around the estate
-const mx = x => (x - MZ.x0) / (MZ.x1 - MZ.x0) * mini.width, mz = z => (z - MZ.z0) / (MZ.z1 - MZ.z0) * mini.height;
-(function () {
-  const c = mini.getContext('2d');
-  c.drawImage(gcan, tx(MZ.x0), ty(MZ.z0), tx(MZ.x1) - tx(MZ.x0), ty(MZ.z1) - ty(MZ.z0), 0, 0, mini.width, mini.height);
-  c.strokeStyle = 'rgba(40,40,40,.75)'; c.lineWidth = 1.2;
-  for (const r of S.roads) { c.beginPath(); for (let k = 0; k < r.p.length; k += 2) (k ? c.lineTo : c.moveTo).call(c, mx(r.p[k]), mz(r.p[k + 1])); c.stroke(); }
-  c.fillStyle = '#3d3a35';
-  for (const b of B) { const p = b.p; c.beginPath(); for (let k = 0; k < p.length; k += 2) (k ? c.lineTo : c.moveTo).call(c, mx(p[k]), mz(p[k + 1])); c.fill(); }
-  c.setLineDash([5, 4]); c.strokeStyle = '#d9822b'; c.lineWidth = 2; c.beginPath();
-  const v = S.valriche; for (let k = 0; k < v.length; k += 2) (k ? c.lineTo : c.moveTo).call(c, mx(v[k]), mz(v[k + 1])); c.closePath(); c.stroke();
-})();
-function drawMini() {
-  mctx.drawImage(mini, 0, 0);
-  const f = mode === 'explore' ? [controls.target.x, controls.target.z] : [car.x, car.z];
-  const h = mode === 'explore' ? Math.atan2(camera.position.x - controls.target.x, -(camera.position.z - controls.target.z)) + Math.PI : car.h;
-  mctx.save(); mctx.translate(mx(f[0]), mz(f[1])); mctx.rotate(h);
-  mctx.fillStyle = mode === 'explore' ? '#0d6c73' : '#a87b22'; mctx.strokeStyle = '#fff'; mctx.lineWidth = 2;
-  mctx.beginPath(); mctx.moveTo(0, -11); mctx.lineTo(7, 8); mctx.lineTo(0, 4); mctx.lineTo(-7, 8); mctx.closePath(); mctx.fill(); mctx.stroke();
-  mctx.restore();
-}
-minic.addEventListener('click', e => {
-  const r = minic.getBoundingClientRect();
-  const x = MZ.x0 + (e.clientX - r.left) / r.width * (MZ.x1 - MZ.x0), z = MZ.z0 + (e.clientY - r.top) / r.height * (MZ.z1 - MZ.z0);
-  if (mode === 'explore') flyTo(x, z, 600);
-  else if (mode === 'drive') { const n = nearestRoad(x, z); if (n) { startAt(n.x, n.z, n.h); snapCam = true; } }
-  else {
-    let best = 0, bd = Infinity; for (let s = 0; s < TLEN; s += 10) { const [px, pz] = tourAt(s), d = Math.hypot(px - x, pz - z); if (d < bd) { bd = d; best = s; } }
-    tourS = best; snapCam = true;
-  }
-});
-
-// ------------------------------------------------------------------ UI: filters
-function checkRow(parent, id, label, sw, checked, onchange, countId) {
-  const l = document.createElement('label'); l.className = 'chk';
-  l.innerHTML = `<input type="checkbox" id="${id}" ${checked ? 'checked' : ''}><span class="sw" style="background:${sw}"></span><span>${label}</span><span class="n" id="${countId || ''}"></span>`;
-  l.querySelector('input').addEventListener('change', e => onchange(e.target.checked));
-  parent.appendChild(l);
-}
-for (const c of CATS) checkRow($('#g-cat'), 'f-cat-' + c.id, c.label, c.roof, c.on, v => { catOn[c.id] = v; applyBuildingFilters(); }, 'n-cat-' + c.id);
-for (const s of SRCS) checkRow($('#g-src'), 'f-src-' + s.id, s.label, { osm: '#7a9e7e', msft: '#6b88b5', google: '#c49a5a' }[s.id], s.on, v => { srcOn[s.id] = v; applyBuildingFilters(); }, 'n-src-' + s.id);
-for (const L of LAYERS) checkRow($('#g-layers'), 'f-l-' + L.id, L.label, L.sw, L.on, v => {
-  layerOn[L.id] = v; if (L.id === 'roads') roadMesh.visible = v; else drawGround();
-});
-function chipGroup(parent, items, isOn, toggle, single) {
-  for (const it of items) {
-    const b = document.createElement('button'); b.className = 'chip'; b.type = 'button';
-    b.innerHTML = (it.dot ? `<span class="dot ${it.dot}"></span>` : '') + it.label;
-    b.setAttribute('aria-pressed', isOn(it.id));
-    b.onclick = () => { toggle(it.id); parent.querySelectorAll('.chip').forEach((q, k) => q.setAttribute('aria-pressed', isOn(items[k].id))); };
-    parent.appendChild(b);
-  }
-}
-chipGroup($('#g-floor'), [{ id: 'all', label: 'All' }, { id: '1', label: 'Single storey' }, { id: '2', label: 'Two or more' }],
-  id => floorSel === id, id => { floorSel = id; applyBuildingFilters(); });
-chipGroup($('#g-pcat'), PCATS, id => pcatOn[id], id => { pcatOn[id] = !pcatOn[id]; renderPlaces(); });
-chipGroup($('#g-pv'), PV.map(v => ({ ...v, dot: 'v-' + v.id })), id => pvOn[id], id => { pvOn[id] = !pvOn[id]; renderPlaces(); });
-$('#f-dim').onchange = applyBuildingFilters;
-$('#f-zone').onchange = e => { zoneLine.visible = e.target.checked; };
-$('#search').addEventListener('input', e => { searchQ = e.target.value.trim().toLowerCase(); renderPlaces(); });
-let exTimer = 0;
-$('#f-ex').addEventListener('input', e => {
-  EX = +e.target.value; $('#f-ex-v').textContent = EX + '×';
-  clearTimeout(exTimer); exTimer = setTimeout(rebuildHeights, 120);
-});
-function rebuildHeights() { updateTerrain(); buildRoads(); buildZone(); buildBuildings(); }
-
-function renderPlaces() {
-  const ul = $('#plist'); ul.innerHTML = '';
-  const list = S.pois.filter(poiVisible).sort((a, b) => (PRIO[b.c] - PRIO[a.c]) || a.n.localeCompare(b.n));
-  for (const p of list) {
-    const li = document.createElement('li'), b = document.createElement('button');
-    b.innerHTML = `<span class="dot v-${p.v}"></span><span>${esc(p.n)}</span><span class="cat">${esc(PCATS.find(c => c.id === p.c).label)}</span>`;
-    b.onclick = () => { if (mode !== 'explore') setMode('explore'); showPoi(p); if (innerWidth <= 760) $('#panel').classList.add('closed'); };
-    li.appendChild(b); ul.appendChild(li);
-  }
-  if (!list.length) ul.innerHTML = '<li class="note">No places match. Switch on more categories or clear the search.</li>';
-}
-
-// tabs
-document.querySelectorAll('.tabs button').forEach(t => t.onclick = () => {
-  document.querySelectorAll('.tabs button').forEach(q => q.setAttribute('aria-selected', q === t));
-  document.querySelectorAll('.tabpane').forEach(p => p.hidden = p.dataset.pane !== t.dataset.tab);
-});
-$('#panelToggle').onclick = () => $('#panel').classList.toggle('closed');
-if (innerWidth > 760) $('#panel').classList.remove('closed');
-
-// facts
-const FACTS = [
-  ['verified', 'Heritage Villas Valriche is planned at <b>288 villas</b>. About <b>170</b> were sold and completed by 2022.', 'Pam Golding Properties via BusinessTech, 2022', 'https://businesstech.co.za/news/property/550710/mauritius-enjoying-renewed-interest-from-south-african-buyers/'],
-  ['verified', 'Serviced plots run from <b>613 to 2,207 m²</b>. Villas are typically 2 to 6 bedrooms on one or two floors.', 'Pam Golding development page (sales material)', 'https://www.pamgolding.co.za/property-development/tamarin/heritage-villas-valriche'],
-  ['verified', 'Le Château course: <b>18 holes, par 72</b>, designed by Peter Matkovich and opened in 2004. A 9-hole par-3 sits alongside.', 'Where2Golf, Golfscape', 'https://where2golf.com/mauritius/heritage-golf-club-le-chateau-course'],
-  ['verified', '<b>La Réserve Golf Links</b> by Louis Oosthuizen and Peter Matkovich opened in <b>December 2023</b>.', 'Heritage Golf Club news', 'https://heritagegolfclub.mu/news/la-reserve-golf-links-officially-opens-for-play/'],
-  ['verified', 'Botanist <b>Charles Telfair</b> bought Bel Ombre in 1816 (one biography says 1815) and was the first on the island to plough with oxen.', 'Belombrepedia; RSAS Mauritius', 'https://belombrepedia.belombre.com/en/node/49'],
-  ['verified', 'The Outrigger opened as the Voile d\'Or (2004), became the Mövenpick (2006) and has been Outrigger since 2013. The Mövenpick pin is flagged as outdated.', 'Hospitality Net', 'https://www.hospitalitynet.org/news/4060892.html'],
-  ['unverified', 'The Frédérica / Bel Ombre nature reserve is usually given as <b>~1,300 ha</b>. Rough Guides says 2,500 acres (about 1,000 ha).', 'Defimedia; Rough Guides', 'https://defimedia.info/frederica-nature-reserve-abundance-nature'],
-  ['unverified', 'Villas are said to come with a <b>private 4-seater golf cart</b>, which is the one you are driving. This comes from resale listings only.', 'Michael Zingraf listing', 'https://michaelzingraf.com/en/mauritius-villa-on-golf-estate-bel-ombre-84018962'],
-  ['flagged', 'The <b>Château\'s construction date</b> is disputed: one source says the 1760s, the estate\'s own history implies the 19th century. It is left out of the model.', 'Mautourco; Belombrepedia', 'https://belombrepedia.belombre.com/en/node/60'],
-];
-$('#facts').innerHTML = FACTS.map(([v, t, s, u]) => `<li><span class="dot v-${v}"></span><span>${t}<small><a href="${u}" target="_blank" rel="noopener">${s}</a></small></span></li>`).join('');
-const nS = c => B.filter(b => b.s === c).length;
-$('#sources').innerHTML = [
-  ['Buildings', `Overture Maps ${M.overture_release}: ${nS('osm')} OpenStreetMap, ${nS('msft')} Microsoft ML and ${nS('google')} Google Open Buildings footprints (ODbL / CC BY 4.0).`, 'https://docs.overturemaps.org/'],
-  ['Roads, golf course & land use', 'OpenStreetMap via Overture transportation and base themes. © OpenStreetMap contributors, ODbL.', 'https://www.openstreetmap.org/copyright'],
-  ['Places', `Overture Places (Meta, Microsoft), CDLA-Permissive-2.0. Of ${S.pois.length} pins, ${S.pois.filter(p => p.v === 'verified').length} were checked against independent sources and ${S.pois.filter(p => p.v === 'flagged').length} were flagged as wrong or outdated.`, 'https://docs.overturemaps.org/guides/places/'],
-  ['Terrain', `${M.dem}, 30 m grid. © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA.`, 'https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model'],
-].map(([h, t, u]) => `<li><span class="dot" style="background:var(--accent)"></span><span><b>${h}.</b> ${t}<small><a href="${u}" target="_blank" rel="noopener">${u.replace('https://', '')}</a></small></span></li>`).join('');
-$('#limits').innerHTML = [
-  'The estate boundary is not published as open data. The orange outline is traced around the villa clusters and counts as an inference.',
-  'Building heights are not mapped here. Storeys are estimated (villas 1–2, per sales listings), so treat the skyline as indicative.',
-  'Machine-learned footprints can split one villa into several shapes (pavilions, pool houses). That is why Valriche shows more footprints than its roughly 170 built villas.',
-  'Roofs are modelled: near-rectangular footprints get a hipped roof, others a flat one.',
-  'The elevation is a surface model, so trees and buildings slightly lift the ground around them.',
-].map(t => `<li><span class="dot v-unverified"></span><span>${t}</span></li>`).join('');
-
-// ------------------------------------------------------------------ build & loop
-drawGround(); updateTerrain(); buildRoads(); buildZone(); buildBuildings(); renderPlaces();
-
-let snapCam = false, last = performance.now(), nearT = 0;
-const camTarget = new THREE.Vector3();
-function nearPoi() {
-  let best = null, bd = 160;
-  for (const p of S.pois) { if (p.v === 'flagged') continue; const d = Math.hypot(p.x - car.x, p.z - car.z); if (d < bd && PRIO[p.c] >= 2) { bd = d; best = p; } }
-  return best;
-}
-function tick(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (flight) {
-    const t = Math.min(1, (now - flight.t0) / 1100), e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-    camera.position.lerpVectors(flight.from[0], flight.to[0], e); controls.target.lerpVectors(flight.from[1], flight.to[1], e);
-    if (t >= 1) flight = null;
-  }
-  if (mode === 'drive') {
-    const thr = keys.up ? 1 : 0, rev = keys.down ? 1 : 0;
-    let a = 0;
-    if (thr) a = car.v < 0 ? 6 : 2.4;
-    else if (rev) a = car.v > 0.2 ? -6 : -1.6;
-    else a = -Math.sign(car.v) * Math.min(Math.abs(car.v) / dt, 0.9);
-    if (keys.brake) a = -Math.sign(car.v) * Math.min(Math.abs(car.v) / dt, 9);
-    const fx = Math.sin(car.h), fz = -Math.cos(car.h);
-    const slope = (hRaw(car.x + fx * 2, car.z + fz * 2) - hRaw(car.x - fx * 2, car.z - fz * 2)) / 4;
-    a -= 9.81 * Math.max(-0.25, Math.min(0.25, slope)) * 0.35;
-    car.v = Math.max(-REVV, Math.min(MAXV, car.v + a * dt));
-    const steer = (keys.left ? -1 : 0) + (keys.right ? 1 : 0);
-    car.h += steer * car.v / 4.2 * dt;
-    const nx = car.x + fx * car.v * dt, nz = car.z + fz * car.v * dt;
-    const sign = Math.sign(car.v) || 1;
-    const why = blocked(nx + fx * 2 * sign, nz + fz * 2 * sign);
-    if (why) { car.v *= -0.2; $('#hud-near').textContent = why === 'sea' ? 'That is the lagoon. Carts do not float.' : 'Bumped a building. Reverse with S or ▼.'; nearT = now + 2000; }
-    else { car.x = nx; car.z = nz; }
-  } else if (mode === 'tour') {
-    if (!tourPaused) tourS += MAXV * tourMult * dt;
-    const [x, z] = tourAt(tourS), [ax, az] = tourAt(tourS + 8);
-    const th = Math.atan2(ax - x, -(az - z));
-    let dh = th - car.h; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-    car.h += dh * Math.min(1, dt * 5); car.x = x; car.z = z; car.v = tourPaused ? 0 : MAXV * tourMult;
-    $('#hud-prog').style.width = ((tourS % TLEN) / TLEN * 100).toFixed(1) + '%';
-  }
-  if (mode !== 'explore') {
-    const { F } = placeCart();
-    $('#spd').textContent = Math.round(Math.abs(car.v) * 3.6);
-    if (now > nearT) {
-      const p = nearPoi(); $('#hud-near').innerHTML = p ? `Passing <b>${esc(p.n)}</b>` : 'On the estate roads';
-      nearT = now + 400;
-    }
-    const pos = cart.position;
-    let want, look;
-    if (camMode === 'chase') {
-      want = new THREE.Vector3(pos.x - F.x * 14, pos.y + 6.5, pos.z - F.z * 14);
-      want.y = Math.max(want.y, H(want.x, want.z) + 3);
-      look = new THREE.Vector3(pos.x + F.x * 6, pos.y + 2, pos.z + F.z * 6);
-    } else {
-      want = pos.clone().add(new THREE.Vector3(0, 2.6, 0)).addScaledVector(F, -0.2);
-      look = want.clone().addScaledVector(F, 20); look.y -= 1.2;
-    }
-    const k = snapCam ? 1 : 1 - Math.exp(-dt * (camMode === 'chase' ? 4 : 14));
-    camera.position.lerp(want, k); camTarget.lerp(look, k); if (snapCam) camTarget.copy(look);
-    camera.lookAt(camTarget); snapCam = false;
-    controls.target.copy(pos);
-  } else controls.update();
-  camera.near = mode === 'explore' ? 2 : 0.3; camera.updateProjectionMatrix();
-  if (selMarker && selMarker.visible) selMarker.rotation.y += dt * 2;
-  renderer.render(scene, camera);
-  updateLabels(); drawMini();
-  requestAnimationFrame(tick);
-}
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); for (const p of S.pois) p.w = 0; });
-
-let startMode = 'explore';
-try { startMode = localStorage.getItem('valriche-mode') || 'explore'; } catch (e) { /* storage unavailable */ }
-if (location.hash === '#tour' || location.hash === '#drive') startMode = location.hash.slice(1);
-loading.remove();
-setMode(startMode);
-if (startMode === 'explore') flight = null;
-requestAnimationFrame(tick);
-window.__valriche = { setMode, S, car, keys }; window.__scene = scene;
-})();
-</script>
+<script src="js/world.js"></script>
+<script src="js/villas.js"></script>
+<script src="js/cart.js"></script>
+<script src="js/app.js"></script>
